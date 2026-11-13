@@ -1,0 +1,58 @@
+# Secrets / credentials
+.env
+.env.*
+*.key
+*.pem
+serviceAccountKey.json
+firebase-service-account.json
+
+# Firebase local / project-specific
+.firebase/
+.firebaserc
+firestore.rules
+firebase.backup-*.json
+firebase.before-*.json
+firebase.emulator.json
+
+# Dependencies / build
+node_modules/
+dist/
+build/
+
+# Logs
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Archives / installers
+*.zip
+*.msi
+
+# Firestore rule backups
+firestore.before-*.rules
+firestore_backup_*.rules
+firestore_final_hardened.rules
+firestore_hardened.rules
+
+# Development / audit files
+audit-final.js
+audit-check-content.txt
+findstr
+public/audit-check.js
+
+# Internal recovery / administration tools
+absensi_gmail_recovery_package/
+admin-password-reset-tool/
+daftar_absensi_gmail.txt
+daftar_admin_password.txt
+emulator-public/
+
+# HTML backups
+public/*backup*.html
+public/*before-*.html
+public/*Copy*.html
+public/index_emulator.html

@@ -1,0 +1,13 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Portfolio template only.
+    // Review and customize these rules before using the application.
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

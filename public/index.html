@@ -1,0 +1,4101 @@
+﻿<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Automatic Attendance System</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+<style>
+body{font-family:Inter,Arial,sans-serif}.hidden{display:none!important}.card{box-shadow:0 10px 30px rgba(15,23,42,.08)}
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+<div id="toast" class="hidden fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white shadow-lg"></div>
+<header class="bg-blue-950 text-white">
+ <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+  <div><b class="text-lg">AUTOMATIC ATTENDANCE SYSTEM</b><div class="text-xs text-blue-200">Employee Attendance Portal</div></div>
+  <button id="logout" onclick="logoutUser()" class="hidden bg-red-500 px-4 py-2 rounded-lg text-sm">Logout</button>
+ </div>
+</header>
+
+<main class="max-w-7xl mx-auto p-4">
+<section id="loginPage" class="max-w-md mx-auto mt-10">
+ <div class="bg-white rounded-2xl p-6 card">
+  <h1 class="text-2xl font-bold text-blue-950">Login Pegawai</h1>
+  <p class="text-sm text-slate-500 mt-1 mb-5">NIK digunakan sebagai identitas akun.</p>
+  <input id="email" autocomplete="off" class="border rounded-lg p-3 w-full mb-3" placeholder="NIK@demo.example">
+  <input id="password" type="password" autocomplete="new-password" class="border rounded-lg p-3 w-full mb-3" placeholder="Password">
+  <button onclick="login()" class="w-full bg-blue-600 text-white rounded-lg p-3 font-semibold">Login</button>
+  <button onclick="showRegister()" class="w-full border border-blue-600 text-blue-700 rounded-lg p-3 mt-2">Registrasi Pegawai</button>
+ </div>
+</section>
+
+<section id="registerPage" class="hidden max-w-md mx-auto mt-10">
+ <div class="bg-white rounded-2xl p-6 card">
+  <h1 class="text-2xl font-bold text-blue-950">Registrasi Pegawai</h1>
+  <p class="text-sm text-slate-500 mt-1 mb-5">NIK harus sudah dimasukkan Admin ke daftar pegawai.</p>
+  <input id="rNik" class="border rounded-lg p-3 w-full mb-2" placeholder="NIK">
+  <input id="rName" class="border rounded-lg p-3 w-full mb-2" placeholder="Nama Lengkap">
+  <input id="rPass" type="password" class="border rounded-lg p-3 w-full mb-3" placeholder="Password minimal 6 karakter">
+  <button onclick="register()" class="w-full bg-green-600 text-white rounded-lg p-3 font-semibold">Buat Akun</button>
+  <button onclick="showLogin()" class="w-full border rounded-lg p-3 mt-2">Kembali</button>
+ </div>
+</section>
+
+<section id="employeePage" class="hidden">
+ <div class="bg-white rounded-2xl p-3 card mb-4">
+  <div class="grid grid-cols-3 gap-2">
+   <button id="employeeTabAbsensi" onclick="employeeTab('absensi')" class="employee-tab bg-blue-600 text-white px-3 py-3 rounded-lg font-semibold text-sm sm:text-base">Absensi</button>
+   <button id="employeeTabPengajuan" onclick="employeeTab('pengajuan')" class="employee-tab border px-3 py-3 rounded-lg font-semibold text-sm sm:text-base">Pengajuan</button>
+   <button id="employeeTabRiwayat" onclick="employeeTab('riwayat')" class="employee-tab border px-3 py-3 rounded-lg font-semibold text-sm sm:text-base">Riwayat Absensi</button>
+  </div>
+ </div>
+ <div class="grid lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 space-y-4">
+   <div id="employeeAbsensiTab" class="bg-white rounded-2xl p-5 card">
+    <div class="flex justify-between gap-3 flex-wrap">
+     <div><div class="text-sm text-slate-500">Pegawai</div><h2 id="pName" class="text-xl font-bold">-</h2><p id="pInfo" class="text-sm text-slate-500">-</p></div>
+     <div id="todayState" class="rounded-full bg-slate-100 px-3 py-2 text-sm">Memuat...</div>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-3 mt-5">
+     <button id="inBtn" onclick="clockIn()" class="bg-green-600 text-white rounded-xl p-4 font-bold">Absen Masuk</button>
+     <button id="outBtn" onclick="clockOut()" class="bg-orange-500 text-white rounded-xl p-4 font-bold">Absen Pulang</button>
+    </div>
+    <div id="locationStatus" class="mt-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600">Absensi menggunakan lokasi perangkat. Maksimal jarak dari kantor: <b>400 meter</b>.</div>
+    <label class="block text-sm font-semibold mt-4">Aktifitas</label>
+    <select id="activity" class="border rounded-lg p-3 w-full mt-1"><option>Bekerja</option><option>Rapat</option></select>
+    <label class="block text-sm font-semibold mt-3">Pelaksanaan Upacara</label>
+    <select id="ceremony" class="border rounded-lg p-3 w-full mt-1"><option value="">-</option><option>Ya</option><option>Tidak</option></select>
+    <label class="block text-sm font-semibold mt-3">Catatan</label>
+    <textarea id="note" rows="2" class="border rounded-lg p-3 w-full mt-1"></textarea>
+    <button onclick="saveMeta()" class="mt-2 bg-slate-800 text-white rounded-lg px-4 py-2">Simpan</button>
+   </div>
+
+   <div id="employeePengajuanTab" class="hidden bg-white rounded-2xl p-5 card">
+    <div class="flex justify-between items-center flex-wrap gap-2">
+     <div><h2 class="font-bold text-lg">Pengajuan</h2><p class="text-sm text-slate-500">Ajukan WFH, Dinas Luar, Sakit, atau Cuti. Pengajuan berlaku setelah disetujui Admin.</p></div>
+    </div>
+    <div class="grid md:grid-cols-4 gap-2 mt-4">
+     <select id="requestType" class="border rounded-lg p-2">
+      <option value="WFH">WFH</option>
+      <option value="DINAS_LUAR">Dinas Luar</option>
+      <option value="SAKIT">Sakit</option>
+      <option value="CUTI">Cuti</option>
+     </select>
+     <input id="requestStart" type="date" class="border rounded-lg p-2">
+     <input id="requestEnd" type="date" class="border rounded-lg p-2">
+     <button onclick="submitRequest()" class="bg-purple-600 text-white rounded-lg px-4 py-2">Ajukan</button>
+    </div>
+    <textarea id="requestReason" rows="2" class="border rounded-lg p-3 w-full mt-2" placeholder="Alasan pengajuan"></textarea>
+    <div id="myRequestList" class="mt-4 space-y-2"></div>
+   </div>
+
+   <div id="employeeRiwayatTab" class="hidden bg-white rounded-2xl p-5 card">
+    <div class="flex justify-between items-center flex-wrap gap-2 mb-4">
+     <div>
+      <h2 class="font-bold text-lg">Riwayat Absensi</h2>
+      <p class="text-xs text-slate-500 mt-1">Pilih tanggal awal dan tanggal akhir untuk menampilkan serta melakukan export riwayat.</p>
+     </div>
+     <div class="flex gap-2 items-end flex-wrap">
+      <label class="text-xs text-slate-600">Tanggal Awal
+       <input id="historyStartDate" type="date" class="border rounded-lg p-2 block" title="Tanggal awal riwayat dan export">
+      </label>
+      <label class="text-xs text-slate-600">Tanggal Akhir
+       <input id="historyEndDate" type="date" class="border rounded-lg p-2 block" title="Tanggal akhir riwayat dan export">
+      </label>
+      <select id="employeeExportFormat" class="border rounded-lg p-2">
+       <option value="excel">Excel</option>
+       <option value="pdf">PDF A4 Potret</option>
+      </select>
+      <button onclick="exportEmployee()" class="bg-blue-600 text-white rounded-lg px-3 py-2">Export</button>
+     </div>
+    </div>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm"><thead><tr class="bg-slate-100"><th class="p-2">Hari</th><th>Tanggal</th><th>Masuk</th><th>Pulang</th><th>Terlambat</th><th>Pulang Awal</th><th>Lembur</th><th>Total</th><th>Catatan</th><th>Aktifitas</th></tr></thead><tbody id="myBody"></tbody></table></div>
+   </div>
+  </div>
+  <aside class="space-y-4">
+   <div class="bg-white rounded-2xl p-5 card"><b>Jam Kerja</b><div id="scheduleText" class="text-sm mt-3"></div></div>
+   <div id="adminBox" class="hidden bg-white rounded-2xl p-5 card"><b>Administrator</b><p class="text-sm text-slate-500 mt-1">Kelola pegawai, hari libur, jam kerja, dan laporan.</p><button onclick="openAdmin()" class="mt-3 w-full bg-purple-600 text-white rounded-lg p-3">Buka Panel Admin</button></div>
+  </aside>
+ </div>
+</section>
+
+<section id="adminPage" class="hidden">
+ <div class="bg-white rounded-2xl p-5 card">
+  <div class="flex justify-between items-center flex-wrap gap-2"><div><h2 class="text-2xl font-bold">Panel Administrator</h2><p class="text-sm text-slate-500">Pengelolaan master pegawai dan absensi.</p></div><button onclick="showEmployee()" class="border rounded-lg px-4 py-2">Kembali</button></div>
+  <div class="flex gap-2 flex-wrap mt-5">
+   <button onclick="adminTab('employees')" class="tab bg-blue-600 text-white px-4 py-2 rounded-lg">Master Pegawai</button>
+   <button onclick="adminTab('holidays')" class="tab border px-4 py-2 rounded-lg">Hari Libur</button>
+   <button onclick="adminTab('settings')" class="tab border px-4 py-2 rounded-lg">Jam Kerja</button>
+   <button onclick="adminTab('report')" class="tab border px-4 py-2 rounded-lg">Laporan</button>
+   <button onclick="adminTab('requests')" class="tab border px-4 py-2 rounded-lg">Pengajuan</button>
+  </div>
+
+  <div id="employeesTab" class="mt-5">
+   <h3 class="font-bold">Upload Daftar Pegawai</h3>
+   <p class="text-xs text-slate-500 mb-2">Excel minimal memiliki kolom NIK, Nama, Jabatan, Unit Kerja. Sistem juga menerima variasi huruf besar/kecil.</p>
+   <input id="employeeFile" type="file" accept=".xlsx,.xls,.csv" class="border rounded-lg p-2 w-full">
+   <button onclick="importEmployees()" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-lg">Import / Update Pegawai</button>
+   <div class="overflow-x-auto mt-4"><table class="min-w-full text-sm"><thead><tr class="bg-slate-100"><th class="p-2">NIK</th><th>Nama</th><th>Jabatan</th><th>Unit Kerja</th><th>Status</th></tr></thead><tbody id="employeeBody"></tbody></table></div>
+  </div>
+
+  <div id="holidaysTab" class="hidden mt-5">
+   <h3 class="font-bold">Hari Libur</h3><div class="grid md:grid-cols-3 gap-2 mt-2"><input id="holidayDate" type="date" class="border rounded-lg p-2"><input id="holidayName" placeholder="Nama hari libur" class="border rounded-lg p-2"><button onclick="addHoliday()" class="bg-green-600 text-white rounded-lg">Tambah</button></div>
+   <div id="holidayList" class="mt-4"></div>
+  </div>
+
+  <div id="settingsTab" class="hidden mt-5">
+   <h3 class="font-bold">Jam Kerja</h3><p class="text-sm text-slate-500">Atur jam masuk/pulang default. Nilai tersimpan di Firestore.</p>
+   <div class="grid md:grid-cols-2 gap-3 mt-3"><label>Senin-Kamis <input id="monStart" type="time" class="border rounded-lg p-2 ml-2"><input id="monEnd" type="time" class="border rounded-lg p-2"></label><label>Jumat <input id="friStart" type="time" class="border rounded-lg p-2 ml-2"><input id="friEnd" type="time" class="border rounded-lg p-2"></label></div>
+   <button onclick="saveSettings()" class="mt-3 bg-blue-600 text-white rounded-lg px-4 py-2">Simpan Pengaturan</button>
+  </div>
+
+  <div id="reportTab" class="hidden mt-5">
+   <div class="grid md:grid-cols-5 gap-2">
+
+  <input
+    id="reportMonth"
+    type="month"
+    class="border rounded-lg p-2"
+    title="Bulan laporan">
+
+  <input
+    id="reportStartDate"
+    type="date"
+    class="border rounded-lg p-2"
+    title="Tanggal mulai">
+
+  <input
+    id="reportEndDate"
+    type="date"
+    class="border rounded-lg p-2"
+    title="Tanggal akhir">
+
+  <input
+    id="reportNik"
+    placeholder="NIK (opsional)"
+    class="border rounded-lg p-2">
+
+  <button
+    onclick="loadReport()"
+    class="bg-blue-600 text-white rounded-lg">
+    Tampilkan
+  </button>
+
+</div>
+   <div class="overflow-x-auto mt-4">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="bg-slate-100">
+        <th class="p-2">NIK</th>
+        <th>Nama</th>
+        <th>Tanggal</th>
+        <th>Masuk</th>
+        <th>Pulang</th>
+        <th>Terlambat</th>
+        <th>Pulang Awal</th>
+        <th>Lembur</th>
+        <th>Total</th>
+        <th>Catatan</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="reportBody"></tbody>
+  </table>
+</div>
+   <div class="mt-4 flex gap-2 items-center flex-wrap"><select id="adminExportFormat" class="border rounded-lg p-2"><option value="excel">Excel</option><option value="pdf">PDF A4 Potret</option></select><button onclick="exportAdmin()" class="bg-green-600 text-white rounded-lg px-4 py-2">Export Laporan</button></div>
+  </div>
+
+  <div id="requestsTab" class="hidden mt-5">
+   <div class="flex justify-between items-center flex-wrap gap-2">
+    <div><h3 class="font-bold">Pengajuan Pegawai</h3><p class="text-sm text-slate-500">Setujui atau tolak pengajuan WFH, Dinas Luar, Sakit, dan Cuti.</p></div>
+    <select id="requestStatusFilter" onchange="loadAdminRequests()" class="border rounded-lg p-2">
+     <option value="MENUNGGU">Menunggu</option><option value="DISETUJUI">Disetujui</option><option value="DITOLAK">Ditolak</option><option value="SEMUA">Semua</option>
+    </select>
+   </div>
+   <div class="overflow-x-auto mt-4">
+    <table class="min-w-full text-sm">
+     <thead><tr class="bg-slate-100"><th class="p-2">NIK</th><th>Nama</th><th>Jenis</th><th>Periode</th><th>Alasan</th><th>Status</th><th>Aksi</th></tr></thead>
+     <tbody id="requestAdminBody"></tbody>
+    </table>
+   </div>
+  </div>
+ </div>
+</section>
+</main>
+
+<script>
+const firebaseConfig={apiKey:"YOUR_FIREBASE_API_KEY",authDomain:"YOUR_PROJECT.firebaseapp.com",projectId:"YOUR_PROJECT_ID",storageBucket:"YOUR_PROJECT.firebasestorage.app",messagingSenderId:"YOUR_MESSAGING_SENDER_ID",appId:"YOUR_FIREBASE_APP_ID"};
+firebase.initializeApp(firebaseConfig); const auth=firebase.auth(),db=firebase.firestore();
+const ADMIN_EMAILS=["admin@demo.example"]; 
+let user=null,
+    profile=null,
+    myRows=[],
+    reportRows=[],
+    settings={monStart:"07:30",
+    monEnd:"16:00",
+    friStart:"07:30",
+    friEnd:"16:30"},
+    holidayDates=new Set(),
+    holidayNames=new Map();
+const $ = x => document.getElementById(x);
+
+// =========================
+// GEOFENCING ABSENSI
+// =========================
+const OFFICE_LAT = -6.200000;
+const OFFICE_LON = 106.816666;
+const OFFICE_RADIUS_METERS = 400;
+let todayRequest = null;
+let myRequests = [];
+let adminRequests = [];
+
+function setLocationStatus(message, type="info"){
+  const el = $("locationStatus");
+  if(!el) return;
+  const classes = {
+    info: "bg-slate-50 border-slate-200 text-slate-600",
+    loading: "bg-blue-50 border-blue-200 text-blue-700",
+    success: "bg-green-50 border-green-200 text-green-700",
+    error: "bg-red-50 border-red-200 text-red-700"
+  };
+  el.className = `mt-3 rounded-lg border px-3 py-2 text-xs ${classes[type] || classes.info}`;
+  el.innerHTML = message;
+}
+
+function distanceMeters(lat1, lon1, lat2, lon2){
+  const R = 6371000;
+  const toRad = value => value * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function getCurrentLocation(){
+  return new Promise((resolve, reject) => {
+    if(!navigator.geolocation){
+      reject(new Error("Browser/perangkat tidak mendukung lokasi."));
+      return;
+    }
+    setLocationStatus("Mengambil lokasi perangkat... Pastikan GPS/lokasi aktif dan izinkan akses lokasi pada browser.", "loading");
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const latitude = Number(position.coords.latitude);
+        const longitude = Number(position.coords.longitude);
+        const accuracy = Number(position.coords.accuracy);
+        if(!Number.isFinite(latitude) || !Number.isFinite(longitude)){
+          reject(new Error("Koordinat lokasi tidak valid."));
+          return;
+        }
+        const distance = distanceMeters(latitude, longitude, OFFICE_LAT, OFFICE_LON);
+        resolve({
+          latitude,
+          longitude,
+          accuracy,
+          distanceMeter: Math.round(distance * 10) / 10
+        });
+      },
+      error => {
+        let message = "Lokasi tidak dapat diperoleh.";
+        if(error.code === 1) message = "Izin lokasi ditolak. Izinkan akses lokasi pada browser lalu coba lagi.";
+        else if(error.code === 2) message = "Lokasi tidak tersedia. Aktifkan GPS/lokasi perangkat lalu coba lagi.";
+        else if(error.code === 3) message = "Pengambilan lokasi terlalu lama. Pastikan GPS/lokasi aktif lalu coba lagi.";
+        reject(new Error(message));
+      },
+      {enableHighAccuracy:true, timeout:15000, maximumAge:0}
+    );
+  });
+}
+
+async function verifyOfficeLocation(){
+  const location = await getCurrentLocation();
+  const distance = location.distanceMeter;
+  if(distance > OFFICE_RADIUS_METERS){
+    setLocationStatus(`Lokasi di luar area absensi. Jarak Anda sekitar <b>${distance} meter</b> dari titik kantor. Maksimal <b>${OFFICE_RADIUS_METERS} meter</b>.`, "error");
+    throw new Error(`Di luar radius absensi. Jarak ${distance} meter, maksimal ${OFFICE_RADIUS_METERS} meter.`);
+  }
+  setLocationStatus(`Lokasi valid. Jarak dari kantor <b>${distance} meter</b> (maksimal ${OFFICE_RADIUS_METERS} meter). Akurasi GPS Â±${Math.round(location.accuracy)} meter.`, "success");
+  return location;
+}
+
+const pad = n =>
+  String(n).padStart(2, "0");
+
+const today = () => {
+  let d = new Date();
+
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+
+// =========================
+// TANGGAL SERVER FIREBASE
+// =========================
+
+async function getServerDate(){
+
+  const ref =
+    db.collection("_system").doc("server");
+
+  await ref.set({
+    serverTime:
+      firebase.firestore.FieldValue.serverTimestamp()
+  }, {
+    merge: true
+  });
+
+  const snap =
+    await ref.get();
+
+  if(
+    !snap.exists ||
+    !snap.data().serverTime
+  ){
+    throw new Error(
+      "Waktu server Firebase belum tersedia."
+    );
+  }
+
+  const serverDate =
+    snap.data().serverTime.toDate();
+
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        timeZone: "Asia/Jakarta",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }
+    ).formatToParts(serverDate);
+
+  const year =
+    parts.find(
+      x => x.type === "year"
+    )?.value;
+
+  const month =
+    parts.find(
+      x => x.type === "month"
+    )?.value;
+
+  const day =
+    parts.find(
+      x => x.type === "day"
+    )?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+
+// =========================
+// KONVERSI JAM KE MENIT
+// =========================
+
+const mins = t => {
+
+  if(!t) return null;
+
+
+  // Firestore Timestamp
+  if(
+    typeof t.toDate === "function"
+  ){
+
+    const d = t.toDate();
+
+    const parts =
+      new Intl.DateTimeFormat(
+        "en-US",
+        {
+          timeZone: "Asia/Jakarta",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }
+      ).formatToParts(d);
+
+    const hour =
+      Number(
+        parts.find(
+          x => x.type === "hour"
+        )?.value || 0
+      );
+
+    const minute =
+      Number(
+        parts.find(
+          x => x.type === "minute"
+        )?.value || 0
+      );
+
+    return hour * 60 + minute;
+  }
+
+
+  // JavaScript Date
+  if(t instanceof Date){
+
+    const parts =
+      new Intl.DateTimeFormat(
+        "en-US",
+        {
+          timeZone: "Asia/Jakarta",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }
+      ).formatToParts(t);
+
+    const hour =
+      Number(
+        parts.find(
+          x => x.type === "hour"
+        )?.value || 0
+      );
+
+    const minute =
+      Number(
+        parts.find(
+          x => x.type === "minute"
+        )?.value || 0
+      );
+
+    return hour * 60 + minute;
+  }
+
+
+  // String HH:MM atau HH:MM:SS
+  if(
+    typeof t === "string"
+  ){
+
+    const a =
+      t.split(":").map(Number);
+
+    if(
+      a.length >= 2 &&
+      !isNaN(a[0]) &&
+      !isNaN(a[1])
+    ){
+
+      return a[0] * 60 + a[1];
+    }
+  }
+
+  return null;
+}; 
+
+const fmt = m =>
+  m != null
+    ? `${pad(Math.floor(m / 60))}:${pad(m % 60)}`
+    : "00:00";
+
+function formatTime(t){
+
+  if(!t) return "-";
+
+  if(typeof t.toDate === "function"){
+    return t.toDate().toLocaleTimeString("id-ID",{
+      hour:"2-digit",
+      minute:"2-digit",
+      second:"2-digit",
+      hour12:false,
+      timeZone:"Asia/Jakarta"
+    });
+  }
+
+  if(t instanceof Date){
+    return t.toLocaleTimeString("id-ID",{
+      hour:"2-digit",
+      minute:"2-digit",
+      second:"2-digit",
+      hour12:false,
+      timeZone:"Asia/Jakarta"
+    });
+  }
+
+  if(typeof t === "string") return t;
+
+  return "-";
+}
+function toast(s,ok=true){
+  let x=$("toast");x.textContent=s;x.className=`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white shadow-lg ${ok?"bg-green-600":"bg-red-600"}`;setTimeout(()=>x.classList.add("hidden"),3000)
+}
+
+function show(x){
+  ["loginPage","registerPage","employeePage","adminPage"].forEach(y=>$(y).classList.add("hidden"));$(x).classList.remove("hidden")
+}
+
+function showLogin(){
+  show("loginPage")} function showRegister(){show("registerPage")} function showEmployee(){show("employeePage");employeeTab("absensi")}
+
+function employeeTab(tab){
+  const tabs={
+    absensi:"employeeAbsensiTab",
+    pengajuan:"employeePengajuanTab",
+    riwayat:"employeeRiwayatTab"
+  };
+  Object.values(tabs).forEach(id=>$(id).classList.add("hidden"));
+  $(tabs[tab]||tabs.absensi).classList.remove("hidden");
+
+  const buttons={
+    absensi:"employeeTabAbsensi",
+    pengajuan:"employeeTabPengajuan",
+    riwayat:"employeeTabRiwayat"
+  };
+  Object.entries(buttons).forEach(([key,id])=>{
+    const b=$(id);
+    b.classList.remove("bg-blue-600","text-white");
+    b.classList.add("border");
+    if(key===tab){
+      b.classList.remove("border");
+      b.classList.add("bg-blue-600","text-white");
+    }
+  });
+}
+
+function admin(){
+  return user&&ADMIN_EMAILS.includes(user.email.toLowerCase())
+}
+
+async function login(){
+  try{await auth.signInWithEmailAndPassword($("email").value.trim().toLowerCase(),$("password").value)}catch(e){toast(e.message,false)
+  }
+}
+
+async function logoutUser(){
+  try{
+    await auth.signOut();
+    $("email").value="";
+    $("password").value="";
+    $("email").focus();
+  }catch(e){
+    console.error("LOGOUT ERROR:",e);
+    toast("Gagal logout: "+e.message,false);
+  }
+}
+async function register(){
+  const nik=$("rNik").value.trim();
+  const name=$("rName").value.trim();
+  const pass=$("rPass").value;
+  if(!/^\d{6,}$/.test(nik) || !name || pass.length<6){
+    return toast("Data registrasi belum benar.",false);
+  }
+  try{
+    // Auth dibuat lebih dulu. Firestore Rules kemudian memvalidasi NIK/nama
+    // terhadap employee_registry yang hanya dapat dibaca Admin.
+    const c=await auth.createUserWithEmailAndPassword(nik+"@demo.example",pass);
+    try{
+      const masterSnap=await db.collection("employee_registry").doc(nik).get();
+      if(!masterSnap.exists || masterSnap.data().status !== "Aktif" || masterSnap.data().nama !== name){
+        throw new Error("DATA_REGISTRASI_TIDAK_SESUAI");
+      }
+      const master=masterSnap.data();
+      await db.collection("users").doc(c.user.uid).set({
+        uid:c.user.uid,
+        email:c.user.email,
+        nik,
+        nama:master.nama,
+        jabatan:master.jabatan || "",
+        unitKerja:master.unitKerja || "",
+        status:"Aktif",
+        role:"employee"
+      });
+    }catch(dbError){
+      try{ await c.user.delete(); }catch(cleanupError){ console.error("REGISTRATION CLEANUP ERROR:",cleanupError); }
+      throw dbError;
+    }
+    toast("Registrasi berhasil.");
+    $("rNik").value="";
+    $("rName").value="";
+    $("rPass").value="";
+  }catch(e){
+    console.error("REGISTER ERROR:",e);
+    toast("Registrasi gagal. Pastikan NIK dan nama sesuai data Admin dan NIK belum memiliki akun.",false);
+  }
+}
+
+auth.onAuthStateChanged(async u=>{
+
+  user = u;
+
+  if(!u){
+    $("logout").classList.add("hidden");
+    showLogin();
+    return;
+  }
+
+  $("logout").classList.remove("hidden");
+
+  const profileLoaded = await loadProfile();
+
+  if(!profileLoaded){
+    return;
+  }
+
+  await loadSettings();
+
+  if(admin()){
+    openAdmin();
+    return;
+  }
+
+  showEmployee();
+
+  await loadToday();
+
+  await loadMy();
+
+  await loadMyRequests();
+});
+async function loadProfile(){
+
+  if($("statusText")){
+    $("statusText").textContent = "Memuat...";
+    $("statusText").className = "text-sm text-slate-500";
+  }
+
+  if(!user) return false;
+
+  try{
+
+    // =========================
+    // ADMIN
+    // =========================
+
+    if(admin()){
+
+      profile = {
+        nama: "Administrator",
+        nik: "",
+        jabatan: "Administrator",
+        unitKerja: "Demo Organization",
+        role: "admin"
+      };
+
+      $("pName").textContent = profile.nama;
+
+      $("pInfo").textContent =
+        `${profile.jabatan} â€¢ ${profile.unitKerja}`;
+
+      if($("statusText")){
+        $("statusText").textContent = "Siap";
+        $("statusText").className = "text-sm text-emerald-600";
+      }
+
+      return true;
+    }
+
+
+    // =========================
+    // PEGAWAI
+    // =========================
+
+    const s = await db
+      .collection("users")
+      .doc(user.uid)
+      .get();
+
+
+    // =========================
+    // PROFIL TIDAK DITEMUKAN
+    // =========================
+
+    if(!s.exists){
+
+      if($("statusText")){
+        $("statusText").textContent = "Profil tidak ditemukan";
+        $("statusText").className = "text-sm text-red-600";
+      }
+
+      toast("Profil tidak ditemukan.", false);
+
+      await auth.signOut();
+
+      return false;
+    }
+
+
+    // =========================
+    // PROFIL BERHASIL DIMUAT
+    // =========================
+
+    profile = s.data();
+
+    $("pName").textContent =
+      profile.nama ||
+      profile.name ||
+      user.email;
+
+    $("pInfo").textContent =
+      `${profile.nik || ""} â€¢ ${profile.jabatan || ""} â€¢ ${profile.unitKerja || ""}`;
+
+
+    if($("statusText")){
+      $("statusText").textContent = "Siap";
+      $("statusText").className = "text-sm text-emerald-600";
+    }
+
+    return true;
+
+
+  }catch(e){
+
+    console.error("LOAD PROFILE ERROR:", e);
+
+    if($("statusText")){
+      $("statusText").textContent = "Gagal memuat";
+      $("statusText").className = "text-sm text-red-600";
+    }
+
+    toast("Gagal memuat profil: " + e.message, false);
+
+    return false;
+  }
+}
+
+async function loadSettings(){let s=await db.collection("settings").doc("work").get();if(s.exists)settings={...settings,...s.data()};$("scheduleText").innerHTML=`Senin-Kamis: <b>${settings.monStart}-${settings.monEnd}</b><br>Jumat: <b>${settings.friStart}-${settings.friEnd}</b><br>Sabtu-Minggu: Libur`}
+
+function schedule(date){
+
+  // =========================
+  // CEK TANGGAL
+  // =========================
+
+  if(!date){
+    return null;
+  }
+
+
+  // =========================
+  // CEK HARI LIBUR
+  // =========================
+
+  if(
+    holidayDates &&
+    holidayDates.has(date)
+  ){
+    return null;
+  }
+
+
+  // =========================
+  // CEK SABTU / MINGGU
+  // =========================
+
+  const d =
+    new Date(
+      date + "T00:00:00"
+    );
+
+  const day =
+    d.getDay();
+
+
+  if(
+    day === 0 ||
+    day === 6
+  ){
+    return null;
+  }
+
+
+  // =========================
+  // JUMAT
+  // =========================
+
+  if(day === 5){
+
+    return {
+      start: settings.friStart,
+      end: settings.friEnd
+    };
+
+  }
+
+
+  // =========================
+  // SENIN - KAMIS
+  // =========================
+
+  return {
+    start: settings.monStart,
+    end: settings.monEnd
+  };
+
+}
+
+function calc(r){
+
+  const s =
+    schedule(r.tanggal);
+
+
+  // =========================
+  // WAKTU MASUK
+  // =========================
+
+  const waktuMasuk =
+    r.waktuMasuk ||
+    r.jamMasuk ||
+    null;
+
+
+  // =========================
+  // WAKTU PULANG
+  // =========================
+
+  const waktuPulang =
+    r.waktuPulang ||
+    r.jamPulang ||
+    null;
+
+
+  // =========================
+  // KONVERSI KE MENIT
+  // =========================
+
+  const mi =
+    mins(waktuMasuk);
+
+  const mo =
+    mins(waktuPulang);
+
+  const st =
+    s
+      ? mins(s.start)
+      : null;
+
+  const en =
+    s
+      ? mins(s.end)
+      : null;
+
+
+  // =========================
+  // HITUNG OTOMATIS
+  // =========================
+
+  const autoTerlambat =
+    s &&
+    mi !== null &&
+    st !== null
+      ? Math.max(
+          0,
+          mi - st
+        )
+      : 0;
+
+
+  const autoPulangAwal =
+    s &&
+    mo !== null &&
+    en !== null
+      ? Math.max(
+          0,
+          en - mo
+        )
+      : 0;
+
+
+  const autoLembur =
+    s &&
+    mo !== null &&
+    en !== null
+      ? Math.max(
+          0,
+          mo - en
+        )
+      : 0;
+
+
+  // =========================
+  // KOREKSI MANUAL ADMIN
+  // =========================
+
+  const terlambat =
+    r.manualTerlambat !== undefined &&
+    r.manualTerlambat !== null
+      ? Number(r.manualTerlambat)
+      : autoTerlambat;
+
+
+  const pulangAwal =
+    r.manualPulangAwal !== undefined &&
+    r.manualPulangAwal !== null
+      ? Number(r.manualPulangAwal)
+      : autoPulangAwal;
+
+
+  const lembur =
+    r.manualLembur !== undefined &&
+    r.manualLembur !== null
+      ? Number(r.manualLembur)
+      : autoLembur;
+
+
+  // =========================
+  // TOTAL JAM
+  // =========================
+
+  const total =
+    mi !== null &&
+    mo !== null
+      ? Math.max(
+          0,
+          mo - mi
+        )
+      : 0;
+
+
+  // =========================
+  // HASIL
+  // =========================
+
+  return {
+
+    ...r,
+
+    // Waktu asli
+    waktuMasuk,
+    waktuPulang,
+
+    // Hasil perhitungan
+    terlambat,
+    pulangAwal,
+    lembur,
+    total
+
+  };
+
+}
+
+function id(date){return `${user.uid}_${date}`}
+async function loadToday(){
+
+  $("todayState").textContent = "Memuat...";
+
+  $("todayState").className =
+    "rounded-full bg-slate-100 px-3 py-2 text-sm";
+
+  try {
+
+    // =========================
+    // LOAD DATA HARI LIBUR
+    // =========================
+
+    await loadHolidays();
+
+
+    const d = await getServerDate();
+
+    await loadMyRequests(d);
+
+    const s = await db
+      .collection("attendance")
+      .doc(id(d))
+      .get();
+
+    const r = s.exists ? s.data() : {};
+
+
+    // =========================
+    // WAKTU MASUK
+    // =========================
+
+    let jamMasuk = r.jamMasuk || "";
+
+    if(r.waktuMasuk){
+
+      const waktuMasuk =
+        r.waktuMasuk.toDate();
+
+      jamMasuk =
+        waktuMasuk.toLocaleTimeString(
+          "id-ID",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+            timeZone: "Asia/Jakarta"
+          }
+        );
+    }
+
+
+    // =========================
+    // WAKTU PULANG
+    // =========================
+
+    let jamPulang = r.jamPulang || "";
+
+if(r.waktuPulang){
+
+  const waktuPulang =
+    r.waktuPulang.toDate();
+
+  jamPulang =
+    waktuPulang.toLocaleTimeString(
+      "id-ID",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Jakarta"
+      }
+    );
+}
+
+
+// =========================
+// CEK HARI LIBUR
+// =========================
+
+  const holidayInfo =
+    getHolidayInfo(d);
+
+// =========================
+// TOMBOL
+// =========================
+
+// =========================
+// JIKA HARI LIBUR
+// =========================
+
+if(
+  holidayInfo &&
+  holidayInfo.isHoliday
+){
+
+  $("inBtn").disabled = true;
+
+  $("outBtn").disabled = true;
+
+
+  $("inBtn").textContent =
+    "Hari Libur";
+
+  $("outBtn").textContent =
+    "Hari Libur";
+
+
+  $("inBtn").classList.remove(
+    "bg-green-600",
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+  $("outBtn").classList.remove(
+    "bg-orange-500",
+    "bg-orange-600",
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+
+  $("inBtn").classList.add(
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+  $("outBtn").classList.add(
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+
+  $("todayState").textContent =
+    holidayInfo.name +
+    " â€” Tidak perlu melakukan absensi.";
+
+  $("todayState").className =
+    "rounded-full bg-blue-100 text-blue-700 px-3 py-2 text-sm";
+
+
+  return;
+
+}
+
+// =========================
+// PENGAJUAN DISETUJUI
+// =========================
+
+if(todayRequest && NON_WORKING_REQUESTS.has(todayRequest.jenis)){
+  $("inBtn").disabled = true;
+  $("outBtn").disabled = true;
+  $("inBtn").textContent = "Tidak Perlu Absen";
+  $("outBtn").textContent = "Tidak Perlu Absen";
+  $("inBtn").classList.remove("bg-green-600");
+  $("outBtn").classList.remove("bg-orange-500","bg-orange-600");
+  $("inBtn").classList.add("bg-gray-400","cursor-not-allowed");
+  $("outBtn").classList.add("bg-gray-400","cursor-not-allowed");
+  $("todayState").textContent = `${requestLabel(todayRequest.jenis)} â€” Tidak Bekerja`;
+  $("todayState").className = "rounded-full bg-purple-100 text-purple-700 px-3 py-2 text-sm";
+  $("activity").value = "Bekerja";
+  $("note").value = `${requestLabel(todayRequest.jenis)}${todayRequest.alasan ? " - "+todayRequest.alasan : ""}`;
+  return;
+}
+
+// =========================
+// STATUS TOMBOL ABSEN MASUK
+// =========================
+
+$("inBtn").disabled = !!jamMasuk;
+
+if(jamMasuk){
+
+  $("inBtn").textContent =
+    "âœ“ Sudah Absen Masuk";
+
+  $("inBtn").classList.remove(
+    "bg-green-600"
+  );
+
+  $("inBtn").classList.add(
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+}else{
+
+  $("inBtn").textContent =
+    "Absen Masuk";
+
+  $("inBtn").classList.remove(
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+  $("inBtn").classList.add(
+    "bg-green-600"
+  );
+}
+
+
+// =========================
+// STATUS TOMBOL ABSEN PULANG
+// =========================
+
+$("outBtn").disabled =
+  !jamMasuk || !!jamPulang;
+
+
+if(jamPulang){
+
+  $("outBtn").textContent =
+    "âœ“ Sudah Absen Pulang";
+
+  $("outBtn").classList.remove(
+    "bg-orange-600"
+  );
+
+  $("outBtn").classList.add(
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+}else if(jamMasuk){
+
+  $("outBtn").textContent =
+    "Absen Pulang";
+
+  $("outBtn").classList.remove(
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+
+  $("outBtn").classList.add(
+    "bg-orange-600"
+  );
+
+}else{
+
+  $("outBtn").textContent =
+    "Absen Pulang";
+
+  $("outBtn").classList.remove(
+    "bg-orange-600"
+  );
+
+  $("outBtn").classList.add(
+    "bg-gray-400",
+    "cursor-not-allowed"
+  );
+}
+
+
+    // =========================
+    // FORM
+    // =========================
+
+    $("activity").value =
+      r.aktifitas || "Bekerja";
+
+    $("ceremony").value =
+      r.upacara || "";
+
+    $("note").value =
+      r.catatan || "";
+
+    if(todayRequest && todayRequest.jenis === "WFH"){
+      $("activity").value = "Bekerja";
+      if(!r.catatan) $("note").value = `WFH${todayRequest.alasan ? " - "+todayRequest.alasan : ""}`;
+      setLocationStatus(`WFH disetujui. Absensi tetap wajib, tetapi tidak dibatasi radius ${OFFICE_RADIUS_METERS} meter.`, "success");
+    }
+
+
+    // =========================
+    // STATUS
+    // =========================
+
+    if(jamPulang){
+
+      $("todayState").textContent =
+        `Selesai ${jamMasuk} - ${jamPulang}`;
+
+      $("todayState").className =
+        "rounded-full bg-green-100 text-green-700 px-3 py-2 text-sm";
+
+    }else if(jamMasuk){
+
+      $("todayState").textContent =
+        `Sudah masuk ${jamMasuk}`;
+
+      $("todayState").className =
+        "rounded-full bg-blue-100 text-blue-700 px-3 py-2 text-sm";
+
+    }else{
+
+      $("todayState").textContent =
+        "Belum absen";
+
+      $("todayState").className =
+        "rounded-full bg-slate-100 text-slate-700 px-3 py-2 text-sm";
+    }
+
+
+  }catch(e){
+
+    console.error(
+      "LOAD TODAY ERROR:",
+      e
+    );
+
+    $("todayState").textContent =
+      "Gagal memuat";
+
+    $("todayState").className =
+      "rounded-full bg-red-100 text-red-700 px-3 py-2 text-sm";
+
+    toast(
+      "Gagal memuat status absensi: " +
+      e.message,
+      false
+    );
+  }
+}
+
+async function clockIn(){
+  try {
+    const d = await getServerDate();
+    await refreshTodayRequest(d);
+    if(todayRequest && NON_WORKING_REQUESTS.has(todayRequest.jenis)){
+      return toast(`${requestLabel(todayRequest.jenis)} disetujui. Anda tidak perlu melakukan absensi.`,false);
+    }
+    const ref = db.collection("attendance").doc(id(d));
+    const s = await ref.get();
+    if(s.exists && (s.data().jamMasuk || s.data().waktuMasuk)){
+      return toast("Sudah absen masuk.", false);
+    }
+
+    // WFH yang sudah disetujui tidak wajib berada dalam radius kantor.
+    const lokasi = todayRequest && todayRequest.jenis === "WFH"
+      ? null
+      : await verifyOfficeLocation();
+
+    await ref.set({
+      uid: user.uid,
+      email: user.email,
+      nik: profile.nik,
+      nama: profile.nama,
+      jabatan: profile.jabatan,
+      unitKerja: profile.unitKerja,
+      tanggal: d,
+      waktuMasuk: firebase.firestore.FieldValue.serverTimestamp(),
+      jamMasuk: null,
+      lokasiMasuk: lokasi,
+      aktifitas: todayRequest && todayRequest.jenis === "WFH" ? "Bekerja" : $("activity").value,
+      upacara: $("ceremony").value,
+      catatan: todayRequest && todayRequest.jenis === "WFH"
+        ? `WFH${todayRequest.alasan ? " - "+todayRequest.alasan : ""}`
+        : $("note").value,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+
+    toast("Absen masuk berhasil.");
+    await loadToday();
+    await loadMy();
+  } catch(e) {
+    console.error("CLOCK IN ERROR:", e);
+    toast("Gagal absen masuk: " + e.message, false);
+  }
+}
+
+async function clockOut(){
+  try {
+    const d = await getServerDate();
+    await refreshTodayRequest(d);
+    if(todayRequest && NON_WORKING_REQUESTS.has(todayRequest.jenis)){
+      return toast(`${requestLabel(todayRequest.jenis)} disetujui. Anda tidak perlu melakukan absensi.`,false);
+    }
+    const ref = db.collection("attendance").doc(id(d));
+    const s = await ref.get();
+
+    if(!s.exists){
+      return toast("Absen masuk terlebih dahulu.", false);
+    }
+
+    const data = s.data();
+    if(!data.jamMasuk && !data.waktuMasuk){
+      return toast("Absen masuk terlebih dahulu.", false);
+    }
+    if(data.jamPulang || data.waktuPulang){
+      return toast("Sudah absen pulang.", false);
+    }
+
+    // WFH yang sudah disetujui tidak wajib berada dalam radius kantor.
+    const lokasi = todayRequest && todayRequest.jenis === "WFH"
+      ? null
+      : await verifyOfficeLocation();
+
+    await ref.set({
+      waktuPulang: firebase.firestore.FieldValue.serverTimestamp(),
+      lokasiPulang: lokasi,
+      aktifitas: todayRequest && todayRequest.jenis === "WFH" ? "Bekerja" : $("activity").value,
+      upacara: $("ceremony").value,
+      catatan: todayRequest && todayRequest.jenis === "WFH"
+        ? `WFH${todayRequest.alasan ? " - "+todayRequest.alasan : ""}`
+        : $("note").value,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+
+    toast("Absen pulang berhasil.");
+    await loadToday();
+    await loadMy();
+  } catch(e) {
+    console.error("CLOCK OUT ERROR:", e);
+    toast("Gagal absen pulang: " + e.message, false);
+  }
+}
+
+async function saveMeta(){
+  if(!user || admin()) return toast("Akses hanya untuk pegawai.",false);
+  try{
+    const serverDate = await getServerDate();
+    await db.collection("attendance").doc(id(serverDate)).set({
+      uid:user.uid,
+      email:user.email,
+      nik:profile.nik,
+      nama:profile.nama,
+      jabatan:profile.jabatan || "",
+      unitKerja:profile.unitKerja || "",
+      tanggal:serverDate,
+      aktifitas:$("activity").value,
+      upacara:$("ceremony").value,
+      catatan:$("note").value,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    toast("Data disimpan.");
+    await loadToday();
+    await loadMy();
+  }catch(e){
+    console.error("SAVE META ERROR:",e);
+    toast("Gagal menyimpan data: "+e.message,false);
+  }
+}
+
+async function loadMy(){
+
+  try {
+
+    const now = new Date();
+    const defaultStart = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
+    const defaultEndDateObj = new Date(now.getFullYear(),now.getMonth()+1,0);
+    const defaultEnd = `${defaultEndDateObj.getFullYear()}-${pad(defaultEndDateObj.getMonth()+1)}-${pad(defaultEndDateObj.getDate())}`;
+
+    let startDate = $("historyStartDate").value || defaultStart;
+    let endDate = $("historyEndDate").value || defaultEnd;
+
+    if(startDate > endDate){
+      return toast("Tanggal awal tidak boleh lebih besar dari tanggal akhir.",false);
+    }
+
+    $("historyStartDate").value = startDate;
+    $("historyEndDate").value = endDate;
+
+    // Ambil absensi milik user lalu filter rentang tanggal di client.
+    // Ini sengaja tidak memakai query gabungan uid + tanggal agar tidak
+    // menambah ketergantungan pada composite index Firestore baru.
+    const s = await db
+      .collection("attendance")
+      .where("uid","==",user.uid)
+      .get();
+
+    myRows = s.docs
+      .map(x => calc(x.data()))
+      .filter(row => row.tanggal >= startDate && row.tanggal <= endDate)
+      .sort((a,b) => a.tanggal.localeCompare(b.tanggal));
+
+    // Tambahkan hari Dinas Luar/Sakit/Cuti yang sudah disetujui dan tidak memiliki absensi.
+    const approvedRequests = myRequests.length ? myRequests : await getUserRequests();
+    approvedRequests
+      .filter(r => r.status === "DISETUJUI" && NON_WORKING_REQUESTS.has(r.jenis))
+      .forEach(req => {
+        requestDateRange(req.tanggalMulai, req.tanggalSelesai).forEach(date => {
+          if(date < startDate || date > endDate) return;
+          if(getHolidayInfo(date).isHoliday) return;
+          if(!myRows.some(row => row.tanggal === date)){
+            myRows.push(calc({
+              uid:user.uid, nik:profile.nik, nama:profile.nama, jabatan:profile.jabatan, unitKerja:profile.unitKerja,
+              tanggal:date, waktuMasuk:null, waktuPulang:null, jamMasuk:"", jamPulang:"",
+              aktifitas:"Tidak Bekerja", catatan:`${requestLabel(req.jenis)}${req.alasan ? " - "+req.alasan : ""}`,
+              requestType:req.jenis, requestApproved:true
+            }));
+          }
+        });
+      });
+
+    myRows.sort((a,b) => a.tanggal.localeCompare(b.tanggal));
+
+    $("myBody").innerHTML =
+      myRows.map(r => `
+        <tr class="border-b">
+          <td class="p-2">
+            ${new Date(r.tanggal+"T00:00:00").toLocaleDateString("id-ID",{weekday:"long"})}
+          </td>
+          <td>${escapeHtml(r.tanggal || "-")}</td>
+          <td>${formatTime(r.waktuMasuk || r.jamMasuk)}</td>
+          <td>${formatTime(r.waktuPulang || r.jamPulang)}</td>
+          <td>${fmt(r.terlambat)}</td>
+          <td>${fmt(r.pulangAwal)}</td>
+          <td>${fmt(r.lembur)}</td>
+          <td>${fmt(r.total)}</td>
+          <td>${escapeHtml(r.catatan || "-")}</td>
+          <td>${escapeHtml(r.aktifitas || "")}</td>
+        </tr>
+      `).join("") ||
+      `<tr><td colspan="10" class="p-4 text-center">Belum ada data pada rentang tanggal yang dipilih.</td></tr>`;
+
+  } catch(e) {
+
+    console.error("LOAD MY ERROR:", e);
+    myRows = [];
+
+    $("myBody").innerHTML =
+      `<tr><td colspan="10" class="p-4 text-center">Gagal memuat riwayat.</td></tr>`;
+
+    toast(
+      "Gagal memuat riwayat: " + e.message,
+      false
+    );
+  }
+}
+$("historyStartDate").addEventListener("change",loadMy);
+$("historyEndDate").addEventListener("change",loadMy);
+
+
+function escapeHtml(value){
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[ch]));
+}
+
+const REQUEST_LABELS = {
+  WFH: "WFH",
+  DINAS_LUAR: "Dinas Luar",
+  SAKIT: "Sakit",
+  CUTI: "Cuti"
+};
+
+const NON_WORKING_REQUESTS = new Set(["DINAS_LUAR","SAKIT","CUTI"]);
+
+function requestLabel(type){
+  return REQUEST_LABELS[type] || type || "-";
+}
+
+function requestDateRange(startDate,endDate){
+  const out=[];
+  const start=new Date(startDate+"T00:00:00");
+  const end=new Date(endDate+"T00:00:00");
+  if(isNaN(start.getTime()) || isNaN(end.getTime()) || start>end) return out;
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+    out.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`);
+  }
+  return out;
+}
+
+function requestOverlaps(aStart,aEnd,bStart,bEnd){
+  return aStart <= bEnd && bStart <= aEnd;
+}
+
+async function getUserRequests(){
+  if(!user) return [];
+  const snap=await db.collection("leave_requests").where("uid","==",user.uid).get();
+  return snap.docs.map(d=>({...d.data(),_id:d.id}));
+}
+
+function renderMyRequests(){
+  const box=$("myRequestList");
+  if(!box) return;
+  const rows=[...myRequests].sort((a,b)=>String(b.createdAt?.seconds||0)-String(a.createdAt?.seconds||0));
+  box.innerHTML=rows.map(r=>{
+    const statusClass=r.status==="DISETUJUI"?"bg-green-100 text-green-700":r.status==="DITOLAK"?"bg-red-100 text-red-700":"bg-yellow-100 text-yellow-700";
+    return `<div class="border rounded-lg p-3 flex justify-between gap-3 flex-wrap"><div><b>${escapeHtml(requestLabel(r.jenis))}</b><div class="text-sm text-slate-600">${escapeHtml(r.tanggalMulai)} s/d ${escapeHtml(r.tanggalSelesai)}</div><div class="text-sm mt-1">${escapeHtml(r.alasan||"-")}</div></div><span class="rounded-full px-3 py-1 text-xs font-semibold ${statusClass}">${escapeHtml(r.status||"MENUNGGU")}</span></div>`;
+  }).join("") || `<div class="text-sm text-slate-500">Belum ada pengajuan.</div>`;
+}
+
+async function loadMyRequests(serverDate=null){
+  try{
+    myRequests = await getUserRequests();
+    renderMyRequests();
+    const d = serverDate || await getServerDate();
+    const approvedToday = myRequests.filter(r =>
+      r.status === "DISETUJUI" && r.tanggalMulai <= d && d <= r.tanggalSelesai
+    );
+    if(approvedToday.length > 1){
+      throw new Error("Terdapat lebih dari satu pengajuan disetujui yang mencakup tanggal ini. Hubungi Admin.");
+    }
+    todayRequest = approvedToday[0] || null;
+    return todayRequest;
+  }catch(e){
+    console.error("LOAD MY REQUESTS ERROR:",e);
+    todayRequest = null;
+    toast("Tidak dapat memverifikasi pengajuan. Coba lagi sebelum absensi: "+e.message,false);
+    throw e;
+  }
+}
+
+async function refreshTodayRequest(serverDate){
+  const requests = await getUserRequests();
+  myRequests = requests;
+  renderMyRequests();
+  const approvedToday = requests.filter(r =>
+    r.status === "DISETUJUI" && r.tanggalMulai <= serverDate && serverDate <= r.tanggalSelesai
+  );
+  if(approvedToday.length > 1){
+    throw new Error("Ada lebih dari satu pengajuan disetujui pada tanggal ini. Hubungi Admin.");
+  }
+  todayRequest = approvedToday[0] || null;
+  return todayRequest;
+}
+
+async function submitRequest(){
+  if(!user || admin()) return toast("Pengajuan hanya untuk pegawai.",false);
+  const jenis=$("requestType").value;
+  const start=$("requestStart").value;
+  const end=$("requestEnd").value;
+  const alasan=$("requestReason").value.trim();
+  if(!start || !end || start>end) return toast("Periode pengajuan belum benar.",false);
+  if(!alasan) return toast("Alasan pengajuan wajib diisi.",false);
+  const requestDates=requestDateRange(start,end);
+  if(!requestDates.length) return toast("Tanggal pengajuan tidak valid.",false);
+  if(requestDates.length>31) return toast("Maksimal pengajuan 31 hari dalam satu permohonan.",false);
+  if(alasan.length>1000) return toast("Alasan maksimal 1000 karakter.",false);
+
+  try{
+    const existing=await getUserRequests();
+    const conflict=existing.find(r=>
+      (r.status==="MENUNGGU" || r.status==="DISETUJUI") &&
+      requestOverlaps(start,end,r.tanggalMulai,r.tanggalSelesai)
+    );
+    if(conflict) return toast(`Periode bentrok dengan pengajuan ${requestLabel(conflict.jenis)} (${conflict.tanggalMulai} s/d ${conflict.tanggalSelesai}).`,false);
+
+    const ref=db.collection("leave_requests").doc();
+    await ref.set({
+      uid:user.uid,
+      email:user.email,
+      nik:profile.nik,
+      nama:profile.nama,
+      jabatan:profile.jabatan || "",
+      unitKerja:profile.unitKerja || "",
+      jenis,
+      tanggalMulai:start,
+      tanggalSelesai:end,
+      alasan,
+      status:"MENUNGGU",
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    $("requestReason").value="";
+    toast("Pengajuan berhasil dikirim dan menunggu persetujuan Admin.");
+    await loadMyRequests();
+  }catch(e){
+    console.error("SUBMIT REQUEST ERROR:",e);
+    toast("Gagal mengajukan: "+e.message,false);
+  }
+}
+
+async function loadAdminRequests(){
+  if(!admin()) return;
+  try{
+    const filter=$("requestStatusFilter")?.value || "MENUNGGU";
+    const snap=await db.collection("leave_requests").get();
+    adminRequests=snap.docs.map(d=>({...d.data(),_id:d.id})).filter(r=>filter==="SEMUA" || r.status===filter).sort((a,b)=>String(a.tanggalMulai||"").localeCompare(String(b.tanggalMulai||"")));
+    $("requestAdminBody").innerHTML=adminRequests.map(r=>{
+      const actions=r.status==="MENUNGGU" ? `<button onclick="approveRequest('${r._id}')" class="bg-green-600 text-white px-2 py-1 rounded text-xs mr-1">Setujui</button><button onclick="rejectRequest('${r._id}')" class="bg-red-600 text-white px-2 py-1 rounded text-xs">Tolak</button>` : "-";
+      return `<tr class="border-b"><td class="p-2">${escapeHtml(r.nik||"-")}</td><td>${escapeHtml(r.nama||"-")}</td><td>${escapeHtml(requestLabel(r.jenis))}</td><td>${escapeHtml(r.tanggalMulai||"-")} s/d ${escapeHtml(r.tanggalSelesai||"-")}</td><td>${escapeHtml(r.alasan||"-")}</td><td>${escapeHtml(r.status||"-")}</td><td>${actions}</td></tr>`;
+    }).join("") || `<tr><td colspan="7" class="p-4 text-center text-slate-500">Tidak ada pengajuan.</td></tr>`;
+  }catch(e){
+    console.error("LOAD ADMIN REQUESTS ERROR:",e);
+    toast("Gagal memuat pengajuan Admin: "+e.message,false);
+  }
+}
+
+async function setRequestStatus(id,status){
+  if(!admin()) return toast("Akses ditolak.",false);
+  try{
+    const ref=db.collection("leave_requests").doc(id);
+    const snap=await ref.get();
+    if(!snap.exists) return toast("Pengajuan tidak ditemukan.",false);
+    const r=snap.data();
+    if(r.status!=="MENUNGGU") return toast("Pengajuan ini sudah diproses.",false);
+    if(status==="DISETUJUI"){
+      const all=await db.collection("leave_requests").where("uid","==",r.uid).get();
+      const conflict=all.docs.map(d=>d.data()).find(x=>x.status==="DISETUJUI" && requestOverlaps(r.tanggalMulai,r.tanggalSelesai,x.tanggalMulai,x.tanggalSelesai));
+      if(conflict) return toast(`Tidak dapat menyetujui: bentrok dengan pengajuan ${requestLabel(conflict.jenis)} yang sudah disetujui.`,false);
+    }
+    await ref.set({status,approvedAt:status==="DISETUJUI"?firebase.firestore.FieldValue.serverTimestamp():null,approvedBy:status==="DISETUJUI"?user.email:null,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    toast(status==="DISETUJUI"?"Pengajuan disetujui.":"Pengajuan ditolak.");
+    await loadAdminRequests();
+  }catch(e){
+    console.error("SET REQUEST STATUS ERROR:",e);
+    toast("Gagal memproses pengajuan: "+e.message,false);
+  }
+}
+
+async function approveRequest(id){ return setRequestStatus(id,"DISETUJUI"); }
+async function rejectRequest(id){ return setRequestStatus(id,"DITOLAK"); }
+
+function openAdmin(){
+  if(!admin())return toast("Akses ditolak.",false);show("adminPage");adminTab("employees");loadEmployees();loadHolidays();loadSettingsAdmin();loadAdminRequests()
+}
+
+function adminTab(t){
+  ["employeesTab","holidaysTab","settingsTab","reportTab","requestsTab"].forEach(x=>$(x).classList.add("hidden"));$(t+"Tab").classList.remove("hidden")
+}
+
+async function loadEmployees(){
+  let s=await db.collection("employee_registry").get();$("employeeBody").innerHTML=s.docs.map(d=>{let x=d.data();return `<tr class="border-b"><td class="p-2">${escapeHtml(d.id)}</td><td>${escapeHtml(x.nama||"")}</td><td>${escapeHtml(x.jabatan||"")}</td><td>${escapeHtml(x.unitKerja||"")}</td><td>${escapeHtml(x.status||"Aktif")}</td></tr>`}).join("")
+}
+
+async function importEmployees(){
+  let f=$("employeeFile").files[0];if(!f)return toast("Pilih file Excel.",false);let data=XLSX.utils.sheet_to_json(XLSX.read(await f.arrayBuffer(),{type:"array"}).Sheets[XLSX.read(await f.arrayBuffer(),{type:"array"}).SheetNames[0]],{defval:""});let n=0;for(let r of data){let o={};Object.keys(r).forEach(k=>o[k.toLowerCase().replace(/[^a-z]/g,"")]=String(r[k]).trim());let nik=o.nik||o.nikpegawai||o.nip;if(!nik)continue;await db.collection("employee_registry").doc(nik).set({nik,nama:o.nama||o.namalengkap||"",jabatan:o.jabatan||"",unitKerja:o.unitkerja||o.unit||"",status:o.status||"Aktif",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});n++}toast(`${n} pegawai diimport.`);loadEmployees()
+}
+
+async function addHoliday(){
+  let d=$("holidayDate").value,n=$("holidayName").value.trim();if(!d||!n)return toast("Lengkapi tanggal dan nama.",false);await db.collection("holidays").doc(d).set({nama:n});toast("Hari libur ditambahkan.");loadHolidays()
+}
+
+async function loadHolidays(){
+
+  const s =
+    await db
+      .collection("holidays")
+      .orderBy(
+        firebase.firestore.FieldPath.documentId()
+      )
+      .get();
+
+
+  // =========================
+  // SIMPAN TANGGAL HARI LIBUR
+  // =========================
+
+  holidayDates =
+    new Set(
+      s.docs.map(d => d.id)
+    );
+
+
+  // =========================
+  // SIMPAN NAMA HARI LIBUR
+  // =========================
+
+  holidayNames =
+    new Map(
+      s.docs.map(d => [
+        d.id,
+        d.data().nama || "Hari Libur"
+      ])
+    );
+
+
+  // =========================
+  // TAMPILKAN DAFTAR HARI LIBUR
+  // =========================
+
+  if($("holidayList")){
+
+  $("holidayList").innerHTML =
+
+    s.docs
+      .map(d => `
+        <div class="flex justify-between border-b py-2">
+
+          <span>
+            ${escapeHtml(d.id)} - ${escapeHtml(d.data().nama || "Hari Libur")}
+          </span>
+
+          <button
+            onclick="deleteHoliday('${d.id}')"
+            class="text-red-600">
+            Hapus
+          </button>
+
+        </div>
+      `)
+      .join("")
+
+    ||
+
+    "Belum ada hari libur.";
+
+  }
+}
+
+async function deleteHoliday(d){
+  await db.collection("holidays").doc(d).delete();loadHolidays()
+}
+
+function getHolidayInfo(date){
+
+  // =========================
+  // CEK TANGGAL KOSONG
+  // =========================
+
+  if(!date){
+    return null;
+  }
+
+
+  // =========================
+  // CEK SABTU / MINGGU
+  // =========================
+
+  const d =
+    new Date(
+      date + "T00:00:00"
+    );
+
+  const day =
+    d.getDay();
+
+
+  if(day === 6){
+
+    return {
+      isHoliday: true,
+      type: "weekend",
+      name: "Hari Sabtu"
+    };
+
+  }
+
+
+  if(day === 0){
+
+    return {
+      isHoliday: true,
+      type: "weekend",
+      name: "Hari Minggu"
+    };
+
+  }
+
+
+  // =========================
+  // CEK HARI LIBUR ADMIN
+  // =========================
+
+  if(
+    holidayDates &&
+    holidayDates.has(date)
+  ){
+
+    return {
+      isHoliday: true,
+      type: "holiday",
+      name:
+            holidayNames.get(date) ||
+            "Hari Libur"
+    };
+
+  }
+
+
+  // =========================
+  // BUKAN HARI LIBUR
+  // =========================
+
+  return {
+    isHoliday: false,
+    type: null,
+    name: ""
+  };
+
+}
+
+function dateRange(startDate,endDate){
+
+  const result = [];
+
+  const current =
+    new Date(
+      startDate + "T00:00:00"
+    );
+
+  const end =
+    new Date(
+      endDate + "T00:00:00"
+    );
+
+
+  while(current <= end){
+
+    const year =
+      current.getFullYear();
+
+    const month =
+      String(
+        current.getMonth() + 1
+      ).padStart(2,"0");
+
+    const day =
+      String(
+        current.getDate()
+      ).padStart(2,"0");
+
+
+    result.push(
+      `${year}-${month}-${day}`
+    );
+
+
+    current.setDate(
+      current.getDate() + 1
+    );
+
+  }
+
+
+  return result;
+}
+
+async function loadSettingsAdmin(){
+  $("monStart").value=settings.monStart;$("monEnd").value=settings.monEnd;$("friStart").value=settings.friStart;$("friEnd").value=settings.friEnd
+}
+
+async function saveSettings(){
+  settings={monStart:$("monStart").value,monEnd:$("monEnd").value,friStart:$("friStart").value,friEnd:$("friEnd").value};await db.collection("settings").doc("work").set(settings);toast("Jam kerja disimpan.");loadSettings()
+}
+async function loadReport(){
+
+  try{
+
+    await loadHolidays();
+
+    const startDate =
+      $("reportStartDate").value.trim();
+
+    const endDate =
+      $("reportEndDate").value.trim();
+
+    const nik =
+      $("reportNik").value.trim();
+
+    if(
+      (startDate && !endDate) ||
+      (!startDate && endDate)
+    ){
+      return toast(
+        "Tanggal mulai dan tanggal akhir harus diisi.",
+        false
+      );
+    }
+
+    if(
+      startDate &&
+      endDate &&
+      startDate > endDate
+    ){
+      return toast(
+        "Tanggal mulai tidak boleh lebih besar dari tanggal akhir.",
+        false
+      );
+    }
+
+    // =========================
+    // RENTANG LAPORAN
+    // =========================
+
+    let reportStart;
+    let reportEnd;
+
+    if(startDate && endDate){
+
+      reportStart = startDate;
+      reportEnd = endDate;
+
+    }else{
+
+      const month =
+        $("reportMonth").value ||
+        today().slice(0,7);
+
+      $("reportMonth").value = month;
+
+      const year =
+        Number(month.slice(0,4));
+
+      const monthNumber =
+        Number(month.slice(5,7));
+
+      const lastDay =
+        new Date(
+          year,
+          monthNumber,
+          0
+        ).getDate();
+
+      reportStart =
+        `${year}-${String(monthNumber).padStart(2,"0")}-01`;
+
+      reportEnd =
+        `${year}-${String(monthNumber).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
+
+    }
+
+    // =========================
+    // ADMIN ONLY
+    // =========================
+
+    if(!admin()){
+      return toast(
+        "Akses ditolak.",
+        false
+      );
+    }
+
+    // =========================
+    // AMBIL SEMUA PEGAWAI AKTIF
+    // =========================
+
+    let employees = [];
+
+    const employeeSnap =
+      await db
+        .collection("employee_registry")
+        .where("status","==","Aktif")
+        .get();
+
+    employees =
+      employeeSnap.docs
+        .map(doc => {
+
+          const data =
+            doc.data();
+
+          return {
+            nik:
+              String(
+                data.nik ||
+                doc.id ||
+                ""
+              ).trim(),
+
+            nama:
+              data.nama ||
+              "",
+
+            jabatan:
+              data.jabatan ||
+              "",
+
+            unitKerja:
+              data.unitKerja ||
+              "",
+
+            status:
+              data.status ||
+              "Aktif"
+          };
+
+        })
+        .filter(
+          e => e.nik
+        );
+
+    // =========================
+    // JIKA NIK DIISI
+    // BATASI KE PEGAWAI TERSEBUT
+    // =========================
+
+    if(nik){
+
+      employees =
+        employees.filter(
+          e => e.nik === nik
+        );
+
+      if(!employees.length){
+
+        return toast(
+          "NIK tidak ditemukan atau pegawai tidak aktif.",
+          false
+        );
+
+      }
+
+    }
+
+    // =========================
+    // AMBIL ABSENSI DALAM RENTANG
+    // =========================
+
+    const attendanceSnap =
+      await db
+        .collection("attendance")
+        .where(
+          "tanggal",
+          ">=",
+          reportStart
+        )
+        .where(
+          "tanggal",
+          "<=",
+          reportEnd
+        )
+        .get();
+
+    const requestSnap = await db.collection("leave_requests").get();
+    const approvedRequests = requestSnap.docs
+      .map(d => ({...d.data(), _requestId:d.id}))
+      .filter(r => r.status === "DISETUJUI" && r.tanggalMulai && r.tanggalSelesai)
+      .filter(r => requestOverlaps(reportStart,reportEnd,r.tanggalMulai,r.tanggalSelesai));
+    const requestMap = new Map();
+    approvedRequests.forEach(req => {
+      requestDateRange(req.tanggalMulai,req.tanggalSelesai).forEach(date => {
+        const key=`${req.nik}|${date}`;
+        // Jika ada lebih dari satu approved request, prioritas data terbaru tidak boleh membuat baris ganda.
+        requestMap.set(key,req);
+      });
+    });
+
+    // =========================
+    // MAP BERDASARKAN
+    // NIK + TANGGAL
+    // =========================
+
+    const attendanceMap =
+      new Map();
+
+    attendanceSnap.docs.forEach(doc => {
+
+      const data =
+        doc.data();
+
+      const row = {
+        ...calc(data),
+        _docId:
+          doc.id
+      };
+
+      if(
+        !row.nik ||
+        !row.tanggal
+      ){
+        return;
+      }
+
+      const key =
+        `${row.nik}|${row.tanggal}`;
+
+      attendanceMap.set(
+        key,
+        row
+      );
+
+    });
+
+    // =========================
+    // BANGUN LAPORAN
+    //
+    // ADMIN TANPA NIK:
+    // SEMUA PEGAWAI AKTIF
+    // x SEMUA TANGGAL
+    //
+    // ADMIN DENGAN NIK:
+    // SATU PEGAWAI
+    // x SEMUA TANGGAL
+    // =========================
+
+    const dates =
+      dateRange(
+        reportStart,
+        reportEnd
+      );
+
+    reportRows = [];
+
+    employees.forEach(
+      employee => {
+
+        dates.forEach(
+          date => {
+
+            const key =
+              `${employee.nik}|${date}`;
+
+            // =========================
+            // ADA ABSENSI
+            // =========================
+
+            if(
+                attendanceMap.has(key)
+              ){
+
+              const attendance =
+                attendanceMap.get(key);
+
+              const approvedRequest = requestMap.get(key);
+
+              const holiday =
+                getHolidayInfo(date);
+
+              reportRows.push({
+
+              ...attendance,
+
+            // IDENTITAS SELALU MENGIKUTI MASTER PEGAWAI
+            
+            nik:
+              employee.nik,
+
+            nama:
+              employee.nama,
+
+            jabatan:
+              employee.jabatan,
+
+            unitKerja:
+              employee.unitKerja,
+
+            catatan:
+              holiday &&
+              holiday.isHoliday
+              ? holiday.name
+              : (
+                approvedRequest
+                  ? `${requestLabel(approvedRequest.jenis)}${approvedRequest.alasan ? " - "+approvedRequest.alasan : ""}`
+                  : (attendance.catatan || "")
+                ),
+
+            aktifitas:
+              approvedRequest && approvedRequest.jenis === "WFH"
+                ? "Bekerja"
+                : (attendance.aktifitas || ""),
+
+            isHoliday:
+              false
+
+            });
+
+              return;
+
+          }
+
+            // =========================
+            // TIDAK ADA ABSENSI
+            // =========================
+
+            const approvedRequest = requestMap.get(key);
+
+            if(approvedRequest && NON_WORKING_REQUESTS.has(approvedRequest.jenis) && !getHolidayInfo(date).isHoliday){
+              reportRows.push({
+                nik:employee.nik, nama:employee.nama, jabatan:employee.jabatan, unitKerja:employee.unitKerja, tanggal:date,
+                waktuMasuk:"", waktuPulang:"", jamMasuk:"", jamPulang:"", terlambat:null, pulangAwal:null, lembur:null, total:null,
+                aktifitas:"Tidak Bekerja",
+                catatan:`${requestLabel(approvedRequest.jenis)}${approvedRequest.alasan ? " - "+approvedRequest.alasan : ""}`,
+                requestType:approvedRequest.jenis, requestApproved:true, isHoliday:false
+              });
+              return;
+            }
+
+            const holiday =
+              getHolidayInfo(date);
+
+            if(
+              holiday &&
+              holiday.isHoliday
+            ){
+
+              reportRows.push({
+
+                nik:
+                  employee.nik,
+
+                nama:
+                  employee.nama,
+
+                jabatan:
+                  employee.jabatan,
+
+                unitKerja:
+                  employee.unitKerja,
+
+                tanggal:
+                  date,
+
+                waktuMasuk:
+                  "",
+
+                waktuPulang:
+                  "",
+
+                jamMasuk:
+                  "",
+
+                jamPulang:
+                  "",
+
+                terlambat:
+                  null,
+
+                pulangAwal:
+                  null,
+
+                lembur:
+                  null,
+
+                total:
+                  null,
+
+                catatan:
+                  holiday.name,
+
+                isHoliday:
+                  true
+
+              });
+
+              return;
+
+            }
+
+            // =========================
+            // HARI KERJA TANPA ABSENSI
+            // =========================
+
+            reportRows.push({
+
+              nik:
+                employee.nik,
+
+              nama:
+                employee.nama,
+
+              jabatan:
+                employee.jabatan,
+
+              unitKerja:
+                employee.unitKerja,
+
+              tanggal:
+                date,
+
+              waktuMasuk:
+                "",
+
+              waktuPulang:
+                "",
+
+              jamMasuk:
+                "",
+
+              jamPulang:
+                "",
+
+              terlambat:
+                null,
+
+              pulangAwal:
+                null,
+
+              lembur:
+                null,
+
+              total:
+                null,
+
+              catatan:
+                "",
+
+              isHoliday:
+                false
+
+            });
+
+          }
+
+        );
+
+      }
+
+    );
+
+
+    // =========================
+    // URUTKAN NIK + TANGGAL
+    // =========================
+
+    reportRows.sort(
+      (a,b) =>
+        (
+          String(a.nik) +
+          String(a.tanggal)
+        ).localeCompare(
+          String(b.nik) +
+          String(b.tanggal)
+        )
+    );
+
+
+    // =========================
+    // TAMPILKAN HASIL
+    // =========================
+
+    $("reportBody").innerHTML =
+      reportRows.map(
+        r => `
+
+        <tr class="border-b">
+
+          <td class="p-2">
+            ${escapeHtml(r.nik || "-")}
+          </td>
+
+          <td>
+            ${escapeHtml(r.nama || "-")}
+          </td>
+
+          <td>
+            ${escapeHtml(r.tanggal || "-")}
+          </td>
+
+          <td>
+            ${
+              r.isHoliday
+                ? "-"
+                : formatTime(
+                    r.waktuMasuk ||
+                    r.jamMasuk
+                  )
+            }
+          </td>
+
+          <td>
+            ${
+              r.isHoliday
+                ? "-"
+                : formatTime(
+                    r.waktuPulang ||
+                    r.jamPulang
+                  )
+            }
+          </td>
+
+          <td>
+            ${
+              r.isHoliday
+                ? "-"
+                : fmt(r.terlambat)
+            }
+          </td>
+
+          <td>
+            ${
+              r.isHoliday
+                ? "-"
+                : fmt(r.pulangAwal)
+            }
+          </td>
+
+          <td>
+            ${
+              r.isHoliday
+                ? "-"
+                : fmt(r.lembur)
+            }
+          </td>
+
+          <td>
+            ${
+              r.isHoliday
+                ? "-"
+                : fmt(r.total)
+            }
+          </td>
+
+          <td>
+            ${r.catatan || "-"}
+          </td>
+
+          <td>
+
+            ${r._docId ? `<button onclick="editAttendanceAdmin('${String(r._docId).replace(/'/g,"\\'")}')" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs">Edit</button>` : "-"}
+
+          </td>
+
+        </tr>
+
+      `
+      ).join("");
+
+  }catch(e){
+
+    console.error(
+      "LOAD REPORT ERROR:",
+      e
+    );
+
+    toast(
+      "Gagal memuat laporan: " +
+      e.message,
+      false
+    );
+
+  }
+
+}
+
+async function makeExcel(rows,filename){
+  try{
+if(!rows || !rows.length) return toast("Data kosong.",false);
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Sheet1");
+
+    // ============================================================
+    // FORMAT EXCEL MENGIKUTI TEMPLATE "ABSENSI Reyhan September.xlsx"
+    // Struktur: A:N, baris 1-42, A2:N2 dan A6:N6 merged.
+    // ============================================================
+
+    // Kolom A:N mengikuti proporsi template referensi.
+    const widths = [
+      6.5703125, 9.5703125, 6.5703125, 9.7109375,
+      12.0, 9.42578125, 7.85546875, 9.5703125,
+      7.85546875, 10.5703125, 9.140625, 13.0,
+      8.7109375, 13.7109375
+    ];
+    widths.forEach((width,i)=>ws.getColumn(i+1).width = width);
+
+    // Font template.
+    const fontNormal = {name:"DeJAVU",size:8,color:{argb:"FF000000"}};
+    const fontBold = {name:"DeJAVU",size:8,bold:true,color:{argb:"FF000000"}};
+    const fontTitle = {name:"DeJAVU",size:12,bold:true,color:{argb:"FF000000"}};
+    const fontReport = {name:"DeJAVU",size:10,bold:true,color:{argb:"FF000000"}};
+    const fontSmall = {name:"DeJAVU",size:9,color:{argb:"FF000000"}};
+
+    // Header persis seperti template.
+    ws.mergeCells("A2:N2");
+    ws.getCell("A2").value = "DEMO ORGANIZATION";
+    ws.getCell("A2").font = fontTitle;
+    ws.getCell("A2").alignment = {horizontal:"center",vertical:"center"};
+    ws.getRow(2).height = 15.75;
+
+    ws.getCell("A4").value = "Jl. VETERAN NO. 7 JAKARTA";
+    ws.getCell("A4").font = fontSmall;
+
+    ws.getCell("A5").value = "Telepon: 021-3501161, Faks: 021-3847846";
+    ws.getCell("A5").font = fontSmall;
+
+    ws.mergeCells("A6:N6");
+    ws.getCell("A6").value = "LAPORAN KEHADIRAN";
+    ws.getCell("A6").font = fontReport;
+    ws.getCell("A6").alignment = {
+      horizontal:"center",
+      vertical:"center",
+      wrapText:true
+    };
+    ws.getCell("A6").border = {
+      bottom:{style:"thin",color:{argb:"FF000000"}}
+    };
+    ws.getRow(3).height = 8.45;
+    ws.getRow(6).height = 22.9;
+
+    // Ambil identitas pegawai.
+    const employeeNiks = [
+      ...new Set(rows.map(r=>r.nik).filter(v=>v && v !== "-"))
+    ];
+
+    let employeeData = null;
+    if(employeeNiks.length === 1){
+      const snap = await db.collection("employee_registry").doc(employeeNiks[0]).get();
+      if(snap.exists) employeeData = snap.data();
+    }
+
+    const first = rows[0] || {};
+    const single = employeeNiks.length === 1;
+    const reportNik = single ? employeeNiks[0] : "Semua Pegawai";
+    const reportNama = single ? (employeeData?.nama || first.nama || profile?.nama || "-") : "Semua Pegawai";
+    const reportJabatan = single ? (employeeData?.jabatan || first.jabatan || profile?.jabatan || "-") : "-";
+    const reportUnit = single ? (employeeData?.unitKerja || first.unitKerja || profile?.unitKerja || "-") : "-";
+
+    // Identitas persis mengikuti posisi template:
+    // A7, C7, G7, J7 dan A8, C8, G8, J8.
+    ws.getCell("A7").value = "NIK Pegawai                :";
+    ws.getCell("C7").value = reportNik;
+    ws.getCell("G7").value = "Jabatan";
+    ws.getCell("I7").value = ":";
+    ws.getCell("J7").value = String(reportJabatan).toUpperCase();
+
+    ws.getCell("A8").value = "Nama                       :";
+    ws.getCell("C8").value = String(reportNama).toUpperCase();
+    ws.getCell("G8").value = "Unit Kerja";
+    ws.getCell("I8").value = ":";
+    ws.getCell("J8").value = String(reportUnit).toUpperCase();
+
+    ["A7","C7","G7","I7","J7","A8","C8","G8","I8","J8"].forEach(ref=>{
+      ws.getCell(ref).font = fontNormal;
+      ws.getCell(ref).alignment = {vertical:"center",wrapText:true};
+    });
+
+    // Header tabel baris 10.
+    const headers = [
+      "Hari","Tanggal","Jam Kerja","Aktifitas","Pelaksanaan Upacara",
+      "Tanggal Masuk","Jam Masuk","Tanggal Keluar","Jam Keluar",
+      "Terlambat","Pulang Awal","Lembur Setelah","Total Jam","Catatan"
+    ];
+
+    headers.forEach((header,i)=>{
+      const c = ws.getCell(10,i+1);
+      c.value = header;
+      c.font = fontBold;
+      c.alignment = {
+        horizontal: i===2 ? "left" : "center",
+        vertical:"top",
+        wrapText:true
+      };
+      c.border = {
+        top:{style:"thin",color:{argb:"FF000000"}},
+        left:{style:"thin",color:{argb:"FF000000"}},
+        bottom:{style:"thin",color:{argb:"FF000000"}},
+        right:{style:"thin",color:{argb:"FF000000"}}
+      };
+    });
+    ws.getRow(10).height = 29.45;
+
+    // Helper tanggal sesuai template: dd-mm-yyyy.
+    function excelDateText(dateStr){
+      if(!dateStr) return "-";
+      const p = String(dateStr).split("-").map(Number);
+      if(p.length !== 3 || p.some(n=>!Number.isFinite(n))) return "-";
+      return `${String(p[2]).padStart(2,"0")}-${String(p[1]).padStart(2,"0")}-${p[0]}`;
+    }
+
+    function weekdayText(dateStr){
+      const p = String(dateStr || "").split("-").map(Number);
+      if(p.length !== 3 || p.some(n=>!Number.isFinite(n))) return "-";
+      return new Date(p[0],p[1]-1,p[2]).toLocaleDateString(
+        "id-ID",{weekday:"long"}
+      );
+    }
+
+    // Data mulai baris 11, seperti template.
+    rows.forEach((r,index)=>{
+      const rowNo = 11 + index;
+      const dateText = excelDateText(r.tanggal);
+      const holiday = getHolidayInfo(r.tanggal);
+      const sched = schedule(r.tanggal);
+
+      const waktuMasuk = r.waktuMasuk || r.jamMasuk || null;
+      const waktuPulang = r.waktuPulang || r.jamPulang || null;
+      const isHolidayRow = r.isHoliday === true && !waktuMasuk && !waktuPulang;
+
+      let values;
+
+      if(isHolidayRow){
+        values = [
+          weekdayText(r.tanggal),
+          dateText,
+          sched ? `${sched.start}         -      ${sched.end}` : "00:00         -      00:00",
+          "Libur",
+          "-",
+          "-","-","-","-",
+          "-","-","-","-",
+          r.catatan || holiday?.name || "-"
+        ];
+      }else{
+        const requestType = r.requestType || "";
+        const nonWorking = typeof NON_WORKING_REQUESTS !== "undefined"
+          && NON_WORKING_REQUESTS.has(requestType);
+
+        const jamKerja = nonWorking
+          ? (sched ? `${sched.start}         -      ${sched.end}` : "-")
+          : (sched ? `${sched.start}         -      ${sched.end}` : "-");
+
+        const tanggalKeluar = waktuPulang
+          ? excelDateText(r.tanggal || "")
+          : "-";
+
+        values = [
+          weekdayText(r.tanggal),
+          dateText,
+          jamKerja,
+          r.aktifitas || "Bekerja",
+          r.upacara || "-",
+          waktuMasuk ? dateText : "-",
+          waktuMasuk ? formatTime(waktuMasuk) : "-",
+          tanggalKeluar,
+          waktuPulang ? formatTime(waktuPulang) : "-",
+          r.terlambat != null ? fmt(r.terlambat) : "00:00",
+          r.pulangAwal != null ? fmt(r.pulangAwal) : "00:00",
+          r.lembur != null ? fmt(r.lembur) : "00:00",
+          r.total != null ? fmt(r.total) : "00:00",
+          r.catatan || (holiday?.isHoliday ? holiday.name : "-")
+        ];
+      }
+
+      values.forEach((value,col)=>{
+        const c = ws.getCell(rowNo,col+1);
+        c.value = value;
+        c.font = fontNormal;
+        c.alignment = {
+          horizontal: col===13 ? "left" : (col===2 ? "left" : "left"),
+          vertical:"top",
+          wrapText: col===2 || col===4 || col===13
+        };
+        c.border = {
+          top:{style:"thin",color:{argb:"FF000000"}},
+          left:{style:"thin",color:{argb:"FF000000"}},
+          bottom:{style:"thin",color:{argb:"FF000000"}},
+          right:{style:"thin",color:{argb:"FF000000"}}
+        };
+      });
+
+      ws.getRow(rowNo).height = index === 0 ? 30.95 : 30.95;
+    });
+
+    // Total row seperti template.
+    const totalRow = 10 + rows.length + 1;
+    ws.getCell(totalRow,1).value = "Total : ";
+    ws.getCell(totalRow,1).font = fontNormal;
+    ws.getCell(totalRow,1).alignment = {vertical:"top"};
+
+    // Border total row tetap mengikuti tabel.
+    for(let col=1;col<=14;col++){
+      ws.getCell(totalRow,col).border = {
+        top:{style:"thin",color:{argb:"FF000000"}},
+        left:{style:"thin",color:{argb:"FF000000"}},
+        bottom:{style:"thin",color:{argb:"FF000000"}},
+        right:{style:"thin",color:{argb:"FF000000"}}
+      };
+    }
+
+    // Total lembur dan total jam.
+    let totalOvertime = 0;
+    let totalHours = 0;
+    rows.forEach(r=>{
+      if(typeof r.lembur === "number") totalOvertime += r.lembur;
+      if(typeof r.total === "number") totalHours += r.total;
+    });
+
+    const excelTimeFraction = minutes => minutes / (24*60);
+    ws.getCell(totalRow,12).value = excelTimeFraction(totalOvertime);
+    ws.getCell(totalRow,13).value = excelTimeFraction(totalHours);
+    ws.getCell(totalRow,12).numFmt = "[h]:mm:ss";
+    ws.getCell(totalRow,13).numFmt = "[h]:mm:ss";
+    ws.getCell(totalRow,12).font = fontNormal;
+    ws.getCell(totalRow,13).font = fontNormal;
+    ws.getRow(totalRow).height = 20;
+
+    // Print / page setup mengikuti dokumen referensi.
+    ws.pageSetup = {
+      orientation:"portrait",
+      paperSize:ws.PAPERSIZE_A4,
+      fitToPage:false
+    };
+    ws.pageMargins = {
+      left:0.25,
+      right:0.25,
+      top:0.35,
+      bottom:0.35,
+      header:0.15,
+      footer:0.15
+    };
+    ws.printArea = `A1:N${totalRow}`;
+    ws.views = [{state:"normal"}];
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob(
+      [buffer],
+      {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+    toast("Excel berhasil dibuat.");
+
+  }catch(e){
+    console.error("MAKE EXCEL ERROR:",e);
+    toast("Gagal membuat Excel: " + e.message,false);
+  }
+}
+
+function pdfClockSeconds(value){
+  if(value == null || value === "") return null;
+  let text = value;
+  if(value && typeof value.toDate === "function"){
+    text = formatTime(value);
+  }else if(value instanceof Date){
+    text = formatTime(value);
+  }
+  const match = String(text).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(!match) return null;
+  return Number(match[1])*3600 + Number(match[2])*60 + Number(match[3] || 0);
+}
+
+function pdfDurationSeconds(row, field){
+  const manualField = field === "terlambat" ? "manualTerlambat"
+    : field === "pulangAwal" ? "manualPulangAwal"
+    : field === "lembur" ? "manualLembur" : null;
+  if(manualField && row[manualField] != null && Number.isFinite(Number(row[manualField]))){
+    return Math.max(0,Math.round(Number(row[manualField])*60));
+  }
+
+  const masuk = pdfClockSeconds(row.waktuMasuk || row.jamMasuk);
+  const pulang = pdfClockSeconds(row.waktuPulang || row.jamPulang);
+  const sched = schedule(row.tanggal);
+  const start = sched ? pdfClockSeconds(sched.start) : null;
+  const end = sched ? pdfClockSeconds(sched.end) : null;
+
+  if(field === "total"){
+    if(masuk != null && pulang != null) return Math.max(0,pulang-masuk);
+    return Math.max(0,Math.round(Number(row.total || 0)*60));
+  }
+  if(field === "terlambat"){
+    if(masuk != null && start != null) return Math.max(0,masuk-start);
+  }
+  if(field === "pulangAwal"){
+    if(pulang != null && end != null) return Math.max(0,end-pulang);
+  }
+  if(field === "lembur"){
+    if(pulang != null && end != null) return Math.max(0,pulang-end);
+  }
+  return Math.max(0,Math.round(Number(row[field] || 0)*60));
+}
+
+function pdfDurationText(seconds){
+  const value = Math.max(0,Math.floor(Number(seconds) || 0));
+  return `${String(Math.floor(value/3600)).padStart(2,"0")}:${String(Math.floor((value%3600)/60)).padStart(2,"0")}:${String(value%60).padStart(2,"0")}`;
+}
+
+function buildPdfRows(rows){
+  return rows.map(r=>{
+    const rawDate = String(r.tanggal || "");
+    const parts = rawDate.split("-").map(Number);
+    const validDate = parts.length === 3 && parts.every(n=>Number.isFinite(n));
+    const dateText = validDate ? `${String(parts[2]).padStart(2,"0")}-${String(parts[1]).padStart(2,"0")}-${parts[0]}` : "-";
+    const weekdayText = validDate ? new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString("id-ID",{weekday:"long"}) : "-";
+    const holiday = getHolidayInfo(r.tanggal);
+    const waktuMasuk = r.waktuMasuk || r.jamMasuk || null;
+    const waktuPulang = r.waktuPulang || r.jamPulang || null;
+    const hasAttendance = !!(waktuMasuk || waktuPulang);
+    if(r.isHoliday === true && !hasAttendance){
+      return [weekdayText,dateText,"-","-","-","-","-","-","-","-","-","-","-",r.catatan || holiday?.name || "Hari Libur"];
+    }
+    const scheduleInfo = schedule(r.tanggal);
+    const catatan = r.catatan || (holiday?.isHoliday ? holiday.name : "-");
+    return [
+      weekdayText,dateText,
+      r.requestType && NON_WORKING_REQUESTS.has(r.requestType) ? "-" : (scheduleInfo ? `${scheduleInfo.start} - ${scheduleInfo.end}` : "-"),
+      r.aktifitas || "Bekerja",r.upacara || "-",
+      waktuMasuk ? dateText : "-",waktuMasuk ? formatTime(waktuMasuk) : "-",
+      waktuPulang ? dateText : "-",waktuPulang ? formatTime(waktuPulang) : "-",
+      pdfDurationText(pdfDurationSeconds(r,"terlambat")),
+      pdfDurationText(pdfDurationSeconds(r,"pulangAwal")),
+      pdfDurationText(pdfDurationSeconds(r,"lembur")),
+      pdfDurationText(pdfDurationSeconds(r,"total")),catatan
+    ];
+  });
+}
+
+async function getReportIdentity(rows){
+  const employeeNiks = [...new Set(rows.map(r=>r.nik).filter(v=>v && v !== "-"))];
+  let employeeData = null;
+  if(employeeNiks.length === 1){
+    const snap = await db.collection("employee_registry").doc(employeeNiks[0]).get();
+    if(snap.exists) employeeData = snap.data();
+  }
+  const firstRow = rows[0] || {};
+  const singleEmployee = employeeNiks.length === 1;
+  return {
+    nik: singleEmployee ? employeeNiks[0] : "Semua Pegawai",
+    nama: singleEmployee ? (employeeData?.nama || firstRow.nama || profile?.nama || "-") : "Semua Pegawai",
+    jabatan: singleEmployee ? (employeeData?.jabatan || firstRow.jabatan || profile?.jabatan || "-") : "-",
+    unit: singleEmployee ? (employeeData?.unitKerja || firstRow.unitKerja || profile?.unitKerja || "-") : "-"
+  };
+}
+
+async function makePdf(rows,filename){
+  try{
+if(!rows || !rows.length) return toast("Data kosong.",false);
+    if(!window.jspdf || !window.jspdf.jsPDF) return toast("Library PDF belum siap. Muat ulang halaman dan coba lagi.",false);
+
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const identity = await getReportIdentity(rows);
+
+    // Kop dan identitas hanya ditampilkan pada halaman pertama.
+    doc.setTextColor(0,0,0);
+    doc.setDrawColor(0,0,0);
+    doc.setLineWidth(0.25);
+
+    doc.setFont("times","bold");
+    doc.setFontSize(11);
+    doc.text("DEMO ORGANIZATION",105,10,{align:"center"});
+
+    doc.setFont("times","normal");
+    doc.setFontSize(6.5);
+    doc.text("Jl. VETERAN NO. 7 JAKARTA",105,15,{align:"center"});
+    doc.text("Telepon: 021-3501161, Faks: 021-3847846",105,19,{align:"center"});
+    doc.line(4,22,206,22);
+
+    doc.setFont("times","bold");
+    doc.setFontSize(9);
+    doc.text("LAPORAN KEHADIRAN",105,27,{align:"center"});
+    doc.line(4,29,206,29);
+
+    doc.setFont("times","normal");
+    doc.setFontSize(6.5);
+    doc.text("NIK Pegawai",4,35);
+    doc.text(":",25,35);
+    doc.text(String(identity.nik || "-"),28,35);
+    doc.text("Jabatan",91,35);
+    doc.text(":",111,35);
+    doc.text(String(identity.jabatan || "-"),114,35);
+
+    doc.text("Nama",4,40);
+    doc.text(":",25,40);
+    doc.text(String(identity.nama || "-"),28,40);
+    doc.text("Unit Kerja",91,40);
+    doc.text(":",111,40);
+    doc.text(String(identity.unit || "-"),114,40);
+
+    const head = [[
+      "Hari","Tanggal","Jam Kerja","Aktifitas","Pelaksanaan Upacara",
+      "Tanggal Masuk","Jam Masuk","Tanggal Keluar","Jam Keluar",
+      "Terlambat","Pulang Awal","Lembur Setelah","Total Jam","Catatan"
+    ]];
+
+    const body = buildPdfRows(rows);
+
+    const totalOvertime = rows.reduce((sum,r)=>sum+pdfDurationSeconds(r,"lembur"),0);
+    const totalHours = rows.reduce((sum,r)=>sum+pdfDurationSeconds(r,"total"),0);
+    const totalRow = ["","","","","","","","","","",
+      "Total :",pdfDurationText(totalOvertime),pdfDurationText(totalHours),""];
+
+    doc.autoTable({
+      head,
+      body:[...body,totalRow],
+      startY:45,
+      theme:"grid",
+      tableWidth:202,
+      margin:{top:9,left:4,right:4,bottom:7},
+      showHead:"everyPage",
+      pageBreak:"auto",
+      rowPageBreak:"avoid",
+      styles:{
+        font:"times",
+        fontSize:5.1,
+        textColor:[0,0,0],
+        fillColor:[255,255,255],
+        cellPadding:0.75,
+        overflow:"linebreak",
+        valign:"middle",
+        halign:"center",
+        lineWidth:0.25,
+        lineColor:[0,0,0]
+      },
+      headStyles:{
+        font:"times",
+        fontStyle:"bold",
+        fontSize:5.2,
+        textColor:[0,0,0],
+        fillColor:[255,255,255],
+        lineColor:[0,0,0],
+        lineWidth:0.25,
+        halign:"center",
+        valign:"middle"
+      },
+      bodyStyles:{
+        textColor:[0,0,0],
+        fillColor:[255,255,255],
+        lineColor:[0,0,0]
+      },
+      columnStyles:{
+        0:{cellWidth:11},
+        1:{cellWidth:13},
+        2:{cellWidth:13},
+        3:{cellWidth:14},
+        4:{cellWidth:17},
+        5:{cellWidth:14},
+        6:{cellWidth:14},
+        7:{cellWidth:14},
+        8:{cellWidth:13},
+        9:{cellWidth:15},
+        10:{cellWidth:15},
+        11:{cellWidth:14},
+        12:{cellWidth:14},
+        13:{cellWidth:21,halign:"left"}
+      },
+      didParseCell:data=>{
+        if(data.section === "body" && data.row.index === body.length){
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.minCellHeight = 6;
+        }
+        if(data.section === "body" && data.column.index === 13){
+          data.cell.styles.halign = "left";
+        }
+      }
+    });
+
+    doc.save(filename);
+    toast("PDF berhasil dibuat mengikuti format laporan kehadiran.");
+  }catch(e){
+    console.error("MAKE PDF ERROR:",e);
+    toast("Gagal membuat PDF: " + e.message,false);
+  }
+}
+
+async function exportEmployee(){
+  const startDate = $("historyStartDate")?.value || "";
+  const endDate = $("historyEndDate")?.value || "";
+
+  if(!startDate || !endDate){
+    return toast("Pilih tanggal awal dan tanggal akhir terlebih dahulu.",false);
+  }
+  if(startDate > endDate){
+    return toast("Tanggal awal tidak boleh lebih besar dari tanggal akhir.",false);
+  }
+
+  // Refresh data sebelum export agar hasil selalu mengikuti rentang
+  // tanggal yang sedang dipilih dan data Firestore terbaru.
+  await loadMy();
+  if(!myRows.length) return toast("Data kosong pada rentang tanggal yang dipilih.",false);
+
+  const format = $("employeeExportFormat")?.value || "excel";
+  const safeName = String(profile?.nama || "Pegawai").replace(/[\\/:*?"<>|]/g,"_").trim() || "Pegawai";
+  const baseName = `Absensi_${safeName}_${startDate}_sampai_${endDate}`;
+
+  if(format === "pdf"){
+    await makePdf(myRows,`${baseName}.pdf`);
+  }else{
+    await makeExcel(myRows,`${baseName}.xlsx`);
+  }
+}
+
+async function exportAdmin(){
+  if(!reportRows.length) return toast("Data kosong.",false);
+  const format = $("adminExportFormat")?.value || "excel";
+  const startDate = $("reportStartDate").value.trim();
+  const endDate = $("reportEndDate").value.trim();
+  const month = $("reportMonth").value;
+  let baseName;
+  if(startDate && endDate){
+    baseName = `Laporan_Absensi_${startDate}_sampai_${endDate}`;
+  }else{
+    baseName = `Laporan_Absensi_${month}`;
+  }
+  if(format === "pdf"){
+    await makePdf(reportRows,`${baseName}.pdf`);
+  }else{
+    await makeExcel(reportRows,`${baseName}.xlsx`);
+  }
+}
+
+// =========================
+// EDIT ABSENSI ADMIN
+// =========================
+
+let editingAttendanceDocId = null;
+
+
+async function editAttendanceAdmin(
+  docId,
+  tanggal,
+  nik,
+  nama
+){
+
+  // =========================
+  // PASTIKAN ADMIN
+  // =========================
+
+  if(!admin()){
+    return toast(
+      "Akses ditolak.",
+      false
+    );
+  }
+
+
+  try{
+
+    // =========================
+    // SIMPAN ID DOKUMEN
+    // =========================
+
+    editingAttendanceDocId =
+      docId || null;
+
+
+    let r = null;
+
+
+    // =========================
+    // JIKA DATA SUDAH ADA
+    // =========================
+
+    if(docId){
+
+      const ref =
+        db.collection("attendance").doc(docId);
+
+      const snap =
+        await ref.get();
+
+
+      if(snap.exists){
+
+        r = snap.data();
+
+      }
+
+    }
+
+
+    // =========================
+    // ISI FORM
+    // =========================
+
+    $("editNik").value =
+      r?.nik ||
+      nik ||
+      "";
+
+
+    $("editNama").value =
+      r?.nama ||
+      nama ||
+      "";
+
+
+    $("editTanggal").value =
+      r?.tanggal ||
+      tanggal ||
+      "";
+
+
+    $("editJamMasuk").value =
+      r
+        ? formatTimeInput(
+            r.waktuMasuk ||
+            r.jamMasuk
+          )
+        : "";
+
+
+    $("editJamPulang").value =
+      r
+        ? formatTimeInput(
+            r.waktuPulang ||
+            r.jamPulang
+          )
+        : "";
+
+
+    $("editTerlambat").value =
+      r
+        ? formatDurationInput(
+            r.terlambat
+          )
+        : "";
+
+
+    $("editPulangAwal").value =
+      r
+        ? formatDurationInput(
+            r.pulangAwal
+          )
+        : "";
+
+
+    $("editLembur").value =
+      r
+        ? formatDurationInput(
+            r.lembur
+          )
+        : "";
+
+
+    // =========================
+    // TAMPILKAN MODAL
+    // =========================
+
+    const modal =
+      $("editAttendanceModal");
+
+
+    modal.classList.remove("hidden");
+
+    modal.classList.add("flex");
+
+
+  }catch(e){
+
+    console.error(
+      "EDIT ATTENDANCE ERROR:",
+      e
+    );
+
+
+    toast(
+      "Gagal membuka data absensi: " +
+      e.message,
+      false
+    );
+
+  }
+
+}
+
+  function formatTimeInput(t){
+
+  // Data kosong
+  if(!t){
+    return "";
+  }
+
+  // Firestore Timestamp
+  if(typeof t.toDate === "function"){
+
+    return t.toDate().toLocaleTimeString(
+      "en-GB",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Jakarta"
+      }
+    );
+
+  }
+
+  // JavaScript Date
+  if(t instanceof Date){
+
+    return t.toLocaleTimeString(
+      "en-GB",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Jakarta"
+      }
+    );
+
+  }
+
+  // String HH:MM atau HH:MM:SS
+  if(typeof t === "string"){
+
+    const parts = t.split(":");
+
+    if(parts.length >= 2){
+
+      return (
+        parts[0].padStart(2,"0") +
+        ":" +
+        parts[1].padStart(2,"0") +
+        ":" +
+        (parts[2] || "00").padStart(2,"0")
+      );
+
+    }
+
+  }
+
+  return "";
+}
+
+
+function formatDurationInput(m){
+
+  // Data kosong
+  if(m == null || m === ""){
+    return "00:00";
+  }
+
+  // Jika sudah berupa angka menit
+  if(typeof m === "number"){
+
+    return (
+      pad(Math.floor(m / 60)) +
+      ":" +
+      pad(m % 60)
+    );
+
+  }
+
+  // Jika berupa string HH:MM
+  if(typeof m === "string"){
+
+    const parts = m.split(":");
+
+    if(parts.length >= 2){
+
+      const hour = Number(parts[0]);
+      const minute = Number(parts[1]);
+
+      if(
+        !isNaN(hour) &&
+        !isNaN(minute)
+      ){
+
+        return (
+          pad(hour) +
+          ":" +
+          pad(minute)
+        );
+
+      }
+    }
+
+  }
+
+  return "00:00";
+}
+
+function timeInputToTimestamp(dateString, timeString){
+
+  if(!dateString || !timeString){
+    return null;
+  }
+
+  const parts =
+    timeString.split(":").map(Number);
+
+  const hour =
+    parts[0] || 0;
+
+  const minute =
+    parts[1] || 0;
+
+  const second =
+    parts[2] || 0;
+
+
+  // Asia/Jakarta = UTC+7
+  const utcMillis =
+    Date.UTC(
+      Number(dateString.slice(0,4)),
+      Number(dateString.slice(5,7)) - 1,
+      Number(dateString.slice(8,10)),
+      hour - 7,
+      minute,
+      second
+    );
+
+
+  return firebase.firestore.Timestamp.fromMillis(
+    utcMillis
+  );
+}
+
+function durationInputToMinutes(value){
+
+  if(!value){
+    return 0;
+  }
+
+
+  const parts =
+    value.split(":").map(Number);
+
+
+  if(
+    parts.length < 2 ||
+    isNaN(parts[0]) ||
+    isNaN(parts[1])
+  ){
+    return 0;
+  }
+
+
+  return (
+    parts[0] * 60 +
+    parts[1]
+  );
+}
+
+async function saveAttendanceAdmin(){
+
+  // =========================
+  // CEK ADMIN
+  // =========================
+
+  if(!admin()){
+    return toast(
+      "Akses ditolak.",
+      false
+    );
+  }
+
+
+  // =========================
+  // AMBIL INPUT
+  // =========================
+
+  const nik =
+    $("editNik").value.trim();
+
+  const nama =
+    $("editNama").value.trim();
+
+  const tanggal =
+    $("editTanggal").value.trim();
+
+  const jamMasuk =
+    $("editJamMasuk").value.trim();
+
+  const jamPulang =
+    $("editJamPulang").value.trim();
+
+  const terlambat =
+    durationInputToMinutes(
+      $("editTerlambat").value.trim()
+    );
+
+  const pulangAwal =
+    durationInputToMinutes(
+      $("editPulangAwal").value.trim()
+    );
+
+  const lembur =
+    durationInputToMinutes(
+      $("editLembur").value.trim()
+    );
+
+
+  // =========================
+  // VALIDASI DATA
+  // =========================
+
+  if(!nik){
+    return toast(
+      "NIK wajib diisi.",
+      false
+    );
+  }
+
+
+  if(!nama){
+    return toast(
+      "Nama wajib diisi.",
+      false
+    );
+  }
+
+
+  if(!tanggal){
+    return toast(
+      "Tanggal wajib diisi.",
+      false
+    );
+  }
+
+
+  // Validasi format tanggal
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)){
+    return toast(
+      "Format tanggal tidak valid.",
+      false
+    );
+  }
+
+
+  // Validasi jam masuk
+if(jamMasuk){
+
+  const parts =
+    jamMasuk.split(":").map(Number);
+
+  const validTime =
+    (
+      (parts.length === 2 || parts.length === 3) &&
+      !parts.some(isNaN) &&
+      parts[0] >= 0 &&
+      parts[0] <= 23 &&
+      parts[1] >= 0 &&
+      parts[1] <= 59 &&
+      (
+        parts.length === 2 ||
+        (
+          parts[2] >= 0 &&
+          parts[2] <= 59
+        )
+      )
+    );
+
+  if(!validTime){
+
+    return toast(
+      "Format jam masuk tidak valid.",
+      false
+    );
+
+  }
+
+}
+
+
+  // Validasi jam pulang
+if(jamPulang){
+
+  const parts =
+    jamPulang.split(":").map(Number);
+
+  const validTime =
+    (
+      (parts.length === 2 || parts.length === 3) &&
+      !parts.some(isNaN) &&
+      parts[0] >= 0 &&
+      parts[0] <= 23 &&
+      parts[1] >= 0 &&
+      parts[1] <= 59 &&
+      (
+        parts.length === 2 ||
+        (
+          parts[2] >= 0 &&
+          parts[2] <= 59
+        )
+      )
+    );
+
+  if(!validTime){
+
+    return toast(
+      "Format jam pulang tidak valid.",
+      false
+    );
+
+  }
+
+}
+
+
+  if(!jamMasuk && jamPulang){
+    return toast(
+      "Jam masuk harus diisi jika jam pulang diisi.",
+      false
+    );
+  }
+
+
+  // =========================
+  // PROSES FIRESTORE
+  // =========================
+
+  try{
+
+    let oldRef = null;
+
+    let oldSnap = null;
+
+    let oldData = null;
+
+
+    // =========================
+    // AMBIL DATA LAMA
+    // =========================
+
+    if(editingAttendanceDocId){
+
+      oldRef =
+        db
+          .collection("attendance")
+          .doc(editingAttendanceDocId);
+
+
+      oldSnap =
+        await oldRef.get();
+
+
+      if(oldSnap.exists){
+
+        oldData =
+          oldSnap.data();
+
+      }
+
+    }
+
+
+    // =========================
+    // TENTUKAN UID PEGAWAI
+    // =========================
+
+    let uid =
+      oldData?.uid || null;
+
+
+    // Jika data lama tidak ada,
+    // cari UID berdasarkan NIK
+    if(!uid){
+
+      const usersSnap =
+        await db
+          .collection("users")
+          .where(
+            "nik",
+            "==",
+            nik
+          )
+          .limit(1)
+          .get();
+
+
+      if(usersSnap.empty){
+
+        return toast(
+          "Data user dengan NIK tersebut tidak ditemukan.",
+          false
+        );
+
+      }
+
+
+      const userDoc =
+        usersSnap.docs[0];
+
+
+      const userData =
+        userDoc.data();
+
+
+      uid =
+        userData.uid ||
+        userDoc.id ||
+        null;
+
+
+      if(!uid){
+
+        return toast(
+          "UID pegawai tidak ditemukan.",
+          false
+        );
+
+      }
+
+    }
+
+
+    // =========================
+    // ID DOKUMEN ABSENSI
+    // =========================
+
+    const newDocId =
+      `${uid}_${tanggal}`;
+
+
+    const newRef =
+      db
+        .collection("attendance")
+        .doc(newDocId);
+
+
+    // =========================
+    // CEK DOKUMEN TUJUAN
+    // =========================
+
+    const newSnap =
+      await newRef.get();
+
+
+    // Jika document tujuan sudah ada
+    // dan bukan document yang sedang diedit
+    if(
+      newSnap.exists &&
+      newDocId !== editingAttendanceDocId
+    ){
+
+      return toast(
+        "Absensi pada tanggal tersebut sudah ada.",
+        false
+      );
+
+    }
+
+
+    // =========================
+    // KONVERSI WAKTU
+    // =========================
+
+    const waktuMasuk =
+      jamMasuk
+        ? timeInputToTimestamp(
+            tanggal,
+            jamMasuk
+          )
+        : null;
+
+
+    const waktuPulang =
+      jamPulang
+        ? timeInputToTimestamp(
+            tanggal,
+            jamPulang
+          )
+        : null;
+
+
+    // =========================
+    // HITUNG TOTAL JAM
+    // =========================
+
+    let total = 0;
+
+
+    if(
+      jamMasuk &&
+      jamPulang
+    ){
+
+      const masukParts =
+        jamMasuk
+          .split(":")
+          .map(Number);
+
+
+      const pulangParts =
+        jamPulang
+          .split(":")
+          .map(Number);
+
+
+      const masukMinutes =
+        masukParts[0] * 60 +
+        masukParts[1];
+
+
+      const pulangMinutes =
+        pulangParts[0] * 60 +
+        pulangParts[1];
+
+
+      total =
+        Math.max(
+          0,
+          pulangMinutes -
+          masukMinutes
+        );
+
+    }
+
+
+    // =========================
+    // CATATAN HARI LIBUR
+    // =========================
+
+    const holiday =
+      getHolidayInfo(tanggal);
+
+
+    let catatan =
+      oldData?.catatan || "";
+
+
+    if(
+      holiday &&
+      holiday.isHoliday
+    ){
+
+      catatan =
+        holiday.name;
+
+    }
+
+
+    // =========================
+    // DATA ABSENSI
+    // =========================
+
+    const newData = {
+
+      ...(oldData || {}),
+
+      uid: uid,
+
+      nik: nik,
+
+      nama: nama,
+
+      tanggal: tanggal,
+
+      jamMasuk:
+        jamMasuk || "",
+
+      jamPulang:
+        jamPulang || "",
+
+      waktuMasuk:
+        waktuMasuk,
+
+      waktuPulang:
+        waktuPulang,
+
+      manualTerlambat:
+        terlambat,
+
+      manualPulangAwal:
+        pulangAwal,
+
+      manualLembur:
+        lembur,
+
+      total:
+        total,
+
+      catatan:
+        catatan,
+
+      updatedAt:
+        firebase.firestore.FieldValue.serverTimestamp()
+
+    };
+
+
+    // =========================
+    // SIMPAN DATA
+    // =========================
+
+    if(
+      oldData &&
+      oldRef &&
+      newDocId !== editingAttendanceDocId
+    ){
+
+      // =========================
+      // TANGGAL DIUBAH
+      // =========================
+
+      const batch =
+        db.batch();
+
+
+      // Buat dokumen pada tanggal baru
+      batch.set(
+        newRef,
+        newData
+      );
+
+
+      // Hapus dokumen tanggal lama
+      batch.delete(
+        oldRef
+      );
+
+
+      await batch.commit();
+
+
+    }else{
+
+      // =========================
+      // CREATE / UPDATE
+      // =========================
+
+      await newRef.set(
+        newData,
+        {
+          merge: true
+        }
+      );
+
+    }
+
+
+    // =========================
+    // BERHASIL
+    // =========================
+
+    toast(
+      oldData
+        ? "Data absensi berhasil diperbarui."
+        : "Data absensi berhasil dibuat.",
+      true
+    );
+
+
+    // =========================
+    // TUTUP MODAL
+    // =========================
+
+    $("editAttendanceModal")
+      .classList.add("hidden");
+
+
+    $("editAttendanceModal")
+      .classList.remove("flex");
+
+
+    // =========================
+    // RESET STATE
+    // =========================
+
+    editingAttendanceDocId =
+      null;
+
+
+    // =========================
+    // LOAD ULANG LAPORAN
+    // =========================
+
+    await loadReport();
+
+
+  }catch(e){
+
+    console.error(
+      "SAVE ATTENDANCE ADMIN ERROR:",
+      e
+    );
+
+
+    toast(
+      "Gagal menyimpan absensi: " +
+      e.message,
+      false
+    );
+
+  }
+
+}
+
+function closeEditAttendance(){
+
+  editingAttendanceDocId = null;
+
+  const modal =
+    $("editAttendanceModal");
+
+  modal.classList.add("hidden");
+
+  modal.classList.remove("flex");
+
+}
+
+</script>
+
+<!-- =========================
+     MODAL EDIT ABSENSI ADMIN
+     ========================= -->
+
+<div
+  id="editAttendanceModal"
+  class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+
+    <!-- HEADER -->
+    <div class="flex items-center justify-between p-4 border-b">
+
+      <h2 class="text-lg font-semibold text-slate-800">
+        Edit Data Absensi
+      </h2>
+
+      <button
+        type="button"
+        onclick="closeEditAttendance()"
+        class="text-slate-500 hover:text-slate-800 text-xl">
+        &times;
+      </button>
+
+    </div>
+
+
+    <!-- FORM -->
+    <div class="p-4 space-y-4">
+
+      <!-- NIK -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          NIK
+        </label>
+
+        <input
+          id="editNik"
+          type="text"
+          class="w-full border rounded-lg p-2"
+          placeholder="NIK">
+      </div>
+
+
+      <!-- NAMA -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Nama
+        </label>
+
+        <input
+          id="editNama"
+          type="text"
+          class="w-full border rounded-lg p-2"
+          placeholder="Nama pegawai">
+      </div>
+
+
+      <!-- TANGGAL -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Tanggal
+        </label>
+
+        <input
+          id="editTanggal"
+          type="date"
+          class="w-full border rounded-lg p-2">
+      </div>
+
+
+      <!-- JAM MASUK -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Jam Masuk
+        </label>
+
+        <input
+          id="editJamMasuk"
+          type="time"
+          step="1"
+          class="w-full border rounded-lg p-2">
+      </div>
+
+
+      <!-- JAM PULANG -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Jam Pulang
+        </label>
+
+        <input
+          id="editJamPulang"
+          type="time"
+          step="1"
+          class="w-full border rounded-lg p-2">
+      </div>
+
+
+      <!-- TERLAMBAT -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Terlambat
+        </label>
+
+        <input
+          id="editTerlambat"
+          type="text"
+          class="w-full border rounded-lg p-2"
+          placeholder="00:00">
+      </div>
+
+
+      <!-- PULANG AWAL -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Pulang Awal
+        </label>
+
+        <input
+          id="editPulangAwal"
+          type="text"
+          class="w-full border rounded-lg p-2"
+          placeholder="00:00">
+      </div>
+
+
+      <!-- LEMBUR -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Lembur
+        </label>
+
+        <input
+          id="editLembur"
+          type="text"
+          class="w-full border rounded-lg p-2"
+          placeholder="00:00">
+      </div>
+
+    </div>
+
+
+    <!-- FOOTER -->
+    <div class="flex justify-end gap-2 p-4 border-t">
+
+      <button
+        type="button"
+        onclick="closeEditAttendance()"
+        class="px-4 py-2 rounded-lg border text-slate-700">
+        Batal
+      </button>
+
+      <button
+        type="button"
+        onclick="saveAttendanceAdmin()"
+        class="px-4 py-2 rounded-lg bg-blue-600 text-white">
+        Simpan
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>
+
+
+
